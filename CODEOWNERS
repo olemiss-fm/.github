@@ -1,0 +1,6 @@
+# CODEOWNERS for the olemiss-fm/.github repo
+#
+# This repo holds the org profile README and shared GitHub configuration.
+# All changes require maintainer review.
+
+* @olemiss-fm/maintainers
