@@ -30,11 +30,10 @@ We're the technology team behind **UM Facilities Management**. We build and main
 |---|---|---|
 | [`fmapiv2`](https://github.com/olemiss-fm/fmapiv2) | Planned next-generation FMAPI rewrite. | Python · MongoDB · RabbitMQ · GraphQL |
 
-### Legacy / audit pending
+### Legacy
 
 | Repo | What it is | Stack |
 |---|---|---|
-| [`planon_and_arc_working_scripts`](https://github.com/olemiss-fm/planon_and_arc_working_scripts) | Pre-FMAPI Planon + ArcGIS scratch scripts; audit pending before consolidation. | Python |
 | [`docs`](https://github.com/olemiss-fm/docs) | Legacy internal documentation site; superseded by per-repo `docs/`. | HTML · Docker |
 
 ## Architecture, in one diagram
