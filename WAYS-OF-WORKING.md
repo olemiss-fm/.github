@@ -29,6 +29,25 @@ We retire the old habit of coding ownership into the title ("Sam's lane: ...",
 "Dean: review ..."). Ownership is the Assignee. A handoff is a state change, not
 a sentence.
 
+### Features, PRs, and the board sync
+
+A pull request is itself a work card. Features (the F4-F11 issues, one per SPEC
+feature) are **epics**: a feature holds many pull requests and is closed by hand
+when it ships, never by a merge. So:
+
+- To tie a pull request to its feature, put **`Part of #<feature>`** in the
+  description - a reference, not `Closes`. `Closes #<feature>` would close the
+  whole epic on the first merge. Use `Closes #<n>` only for a one-off task issue
+  this one pull request finishes.
+- You do **not** set Status, Owner, Size, or Feature on a pull request's card. A
+  board sync (ops `automation/board-sync`) does it every few minutes: it adds
+  every open pull request to the board, sets Status from its state (In Progress
+  while worked, In Review once a reviewer or verdict is on it, Done on merge),
+  Owner from the author (the lane), Size from the diff, and Feature from the
+  `Part of #<feature>` line. One line in the description is all a session writes.
+- **Handoff is still yours** (and the responder's): set it when a card waits on a
+  person. The sync never touches it.
+
 ## 2. Definition of Ready (DoR) - the backbone
 
 No build starts until a card is Ready. A card is Ready only when both are true:
