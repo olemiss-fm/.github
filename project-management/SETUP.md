@@ -1,8 +1,9 @@
 # Board setup - the few steps the API cannot do
 
-Most of the board was set up from the command line (fields, labels, backfill).
-Three things GitHub only lets you set in the web UI. They are one-time and take
-about two minutes. Board: https://github.com/orgs/olemiss-fm/projects/19
+Almost all of the board was set up from the command line (fields, labels,
+backfill, and all seven views). The one thing GitHub does not expose to the API
+is the board workflows, so that single step is manual - about one minute, one
+time. Board: https://github.com/orgs/olemiss-fm/projects/19
 
 ## 1. Turn on the board workflows
 
@@ -20,26 +21,29 @@ In Review", turn those on too. If it does not (the available triggers change),
 sessions set those two statuses by hand as part of the handoff protocol, so
 nothing breaks - the board still moves.
 
-## 2. Create the five views
+## 2. The views (already created)
 
-Click the "+" beside the view tabs and add each (New view -> Table or Board,
-then set the filter). The filter syntax is the same bar the board uses.
+These were created from the API, so there is nothing to do here - they are the
+tabs across the top of the board:
 
 | View name | Layout | Filter |
 |---|---|---|
-| My plate | Table | `assignee:@me -status:Done -status:Backlog` |
-| Dean's plate | Table | `assignee:dlh515 -status:Done -status:Backlog` |
-| In Review | Board | `status:"In Review"` |
+| Board | Kanban (grouped by Status) | (all) |
+| All | Table | (all) |
+| My plate | Table | `assignee:@me -status:Done` |
+| Dean's plate | Table | `assignee:dlh515 -status:Done` |
+| In Review | Table | `status:"In Review"` |
 | Blocked | Table | `status:Blocked` |
-| Backlog needing AC | Table | `status:Backlog` |
+| Backlog to groom | Table | `status:Backlog` |
 
-"Backlog needing AC" is every Backlog card; the human check is whether its
-acceptance criteria are written as machine-runnable checks before it moves to
+**Board** is the Kanban view - the cards as columns, Backlog through Done. It is
+the main way to see the work. "Backlog to groom" is every Backlog card; the human
+check is whether its acceptance criteria are machine-runnable before it moves to
 Ready (there is no board field for "has AC", on purpose - it is a judgment).
 
 ## 3. Nothing else
 
-The command line already did: the six Status columns, the Owner / Handoff / Size
-fields, linking the repo, and putting the 10 open issues in Backlog. The
-`plate.sh` script in this folder shows each person's plate from the terminal
-without opening the board at all.
+The command line already did everything else: the six Status columns, the Owner /
+Handoff / Size fields, linking the repo, putting the 10 open issues in Backlog,
+and all seven views above. The `plate.sh` script in this folder shows each
+person's plate from the terminal without opening the board at all.
