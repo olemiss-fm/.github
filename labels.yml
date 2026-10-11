@@ -1,0 +1,83 @@
+# Shared label taxonomy for olemiss-fm.
+#
+# Authored org-wide so it can be synced to any repo later; in this pilot it is
+# applied ONLY to fm-comp-time (Phase 2 syncs this file to that one repo).
+#
+# WORK TYPE is NOT a label here. The org has native GitHub Issue Types enabled
+# (Task, Bug, Feature, Epic, Chore, Spike). Use those for "what kind of work";
+# do not add type/* labels, so there is one source of truth for work type.
+#
+# This file is the source of truth. Phase 2 sync is additive-and-rename only:
+# it creates missing labels and updates color/description of listed ones. It
+# never deletes a label it does not list, so hand-made labels survive.
+#
+# Format: a list of {name, color, description}. color is a 6-hex string, no '#'.
+
+# --- Priority: how soon, set by the current owner. Exactly one per card. ------
+- name: "priority/p0"
+  color: "b60205"
+  description: "Drop everything. Production is broken, data is wrong, or people are locked out."
+- name: "priority/p1"
+  color: "d93f0b"
+  description: "This week. The next thing that should move once a p0 is clear."
+- name: "priority/p2"
+  color: "fbca04"
+  description: "Soon. Normal queued work."
+- name: "priority/p3"
+  color: "c2e0c6"
+  description: "Someday. Nice to have; no date."
+
+# --- Handoff markers: who the card is waiting on. Mirror the board Handoff ----
+#     field (that field is the source of truth; these labels make the same
+#     state visible in plain GitHub issue lists and searches). At most one of
+#     needs:sam / needs:dean / needs:human-decision at a time; none means the
+#     assignee is working it.
+- name: "needs:sam"
+  color: "1d76db"
+  description: "Waiting on Sam (a platform/CI/security/sign-on decision or review)."
+- name: "needs:dean"
+  color: "0e8a16"
+  description: "Waiting on Dean (a policy, rule, workflow, or wording decision)."
+- name: "needs:human-decision"
+  color: "5319e7"
+  description: "A question needing a human call before build continues; replaces the old question label."
+- name: "claude:handled"
+  color: "bfd4f2"
+  description: "A Claude session has acted on the current handoff. Dropped automatically when the card closes."
+
+# --- Area: which part of the system. Cross-cutting; extend as repos join. -----
+- name: "area/comp-time-engine"
+  color: "0052cc"
+  description: "The comp time calculation and its golden tests (SPEC F6)."
+- name: "area/timecard"
+  color: "0052cc"
+  description: "The timecard grid, save-time rules, submit/approve/lock/correct (SPEC F4, F5, F7)."
+- name: "area/reports"
+  color: "0052cc"
+  description: "Reports, exports, and the audit screens (SPEC F8, F9)."
+- name: "area/migration"
+  color: "0052cc"
+  description: "The Access history import and the parity run (SPEC F10)."
+- name: "area/platform"
+  color: "5319e7"
+  description: "The seams: sign-in, the people feed, database logins, deployment (Sam's lane)."
+- name: "area/ci-cd"
+  color: "5319e7"
+  description: "CI, the Actions gate, and the deploy workflow."
+- name: "area/security"
+  color: "5319e7"
+  description: "Auth, hardening, secrets, personnel-data handling."
+- name: "area/ui-ux"
+  color: "5319e7"
+  description: "FM UI kit adoption and UI/UX standards."
+- name: "area/docs"
+  color: "cfd3d7"
+  description: "Documentation, SPEC, PRD, and process pages."
+
+# --- Workflow state not carried by the board ---------------------------------
+- name: "blocked"
+  color: "d73a4a"
+  description: "Cannot proceed until a dependency clears. Pair with a note saying what."
+- name: "preview"
+  color: "0e8a16"
+  description: "Build this pull request as a QA preview on fm-devdock (read by qa-preview.yml)."
