@@ -1,12 +1,12 @@
-# Weekly retro - automated, draft-to-Sam first
+# Weekly retro - automated, emailed to Sam
 
 A scheduled session on the weekly reset day reads the board and the dashboard
-and posts one short note: **what moved, what went red, and one change to try.**
-A mirror, not a meeting.
+and writes one short note: **what moved, what went red, and one change to try.**
+It emails the note to Sam so he sees it in his inbox. A mirror, not a meeting.
 
 ## When
 
-Sam's weekly Claude usage resets on Wednesday. Run the retro **Wednesday
+Sam's weekly Claude usage resets on Wednesday. The retro runs **Wednesday
 evening, after the reset**, so the note covers the week that just closed.
 
 ## What it does
@@ -19,21 +19,22 @@ evening, after the reset**, so the note covers the week that just closed.
    - **Moved:** what got to Done.
    - **Went red:** any failed CI run or stalled PR, named.
    - **One change:** a single concrete thing to try next week.
+4. Append the three lines to `~/Obsidian/Reference/Weekly Retro.md` as the
+   durable archive, and **email them to Sam** (via `mail.olemiss.edu`, from
+   `fmsupport@olemiss.edu`, to `FM_RETRO_EMAIL_TO`, default `sstubbs@olemiss.edu`).
 
-## The draft-first rule (first two weeks)
+## Sharing with Dean
 
-For its first two runs it does NOT post. It drafts the note to Sam (a message or
-a file), Sam reads it, and only after two weeks of the draft looking right does
-it post on its own. This is deliberate: a retro that posts noise trains people
-to ignore it.
+Sam sees the email first and shares with Dean on his own terms - forward the
+email, or ask a session to post it to the board. The board status update (which
+Dean sees on the board) is **opt-in and off by default**; set
+`FM_RETRO_POST_BOARD=1` to make every run also post it. There is no two-week
+draft-only hold: the retro is active from its first run.
 
-## How to enable it
+## How it is wired
 
-It is a recurring cloud agent and costs a little of the weekly token budget each
-run, so it is Sam's to switch on. The prompt is the three steps above, with
-"draft to Sam, do not post" set for the first two runs. Create it with the
-scheduling tool (weekly, Wednesday evening, America/Chicago), or ask a session
-to set it up.
-
-Until it is enabled, the same note can be produced on demand: run `plate.sh` and
-skim the board's Done and In Review columns for the week.
+It is a systemd user timer on Sam's agent VM (`ops/automation/retro`), scheduled
+weekly for Wednesday evening Central. The implementation and operation (pause a
+week, enable the board post, logs) are documented in that folder's `README.md`.
+On demand, the same picture comes from `plate.sh` in this folder and the board's
+Done and In Review columns.
