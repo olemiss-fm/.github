@@ -75,11 +75,15 @@ A card is Done only when all of these are true. Each is checkable, not a feeling
 2. The Actions run on that PR's head commit is **green** - all five `ci` jobs
    (`ascii`, `scripts`, `image`, `api`, `web`) passed. (rule 5)
 3. The PR's acceptance criteria are proven by a test in that green run.
-4. The shared reviewer (`.claude/agents/pr-reviewer.md`) was run and every
-   finding of every severity about what the PR changes is fixed in the PR.
+4. The shared reviewer (`.claude/agents/pr-reviewer.md`, pinned to Opus) was run
+   by the authoring session and every finding of every severity about what the
+   PR changes is fixed in the PR. There is no second cross-review from the other
+   lane - the reviewer is identical, so the author's own Opus run is the review.
 5. The closing review verdict on the PR is `Ready to merge: YES`.
 6. Any document the change made untrue was corrected in the same PR.
-7. A human merged with "Squash and merge". A session never merges.
+7. The PR is merged with "Squash and merge". Before a repo goes live the
+   reviewing session merges its own PR (every PR, migrations included) on its
+   clean YES; at go-live a human merges the prod-risk class (rule 5).
 
 "It builds on my machine" is not Done. A green Actions run is Done.
 
@@ -117,6 +121,28 @@ While CI runs, the owning session waits on it (watch the run; it wakes the
 session when CI finishes), then posts the closing verdict. CI still running is
 never a reason to hand a PR back to a human.
 
+### The review and who merges (pivot, 2026-10-11)
+
+Each session reviews its OWN PR with the shared reviewer
+(`.claude/agents/pr-reviewer.md`, pinned to Opus) and fixes every finding. There
+is no cross-review gate: a PR in one lane does not wait on a second review from
+the other person. The strength of a review is the model, not the person, so the
+author's own Opus run is the review. A human is pulled in only for a genuine
+decision a PR raises (rule 8), never for a review.
+
+**Before a repo goes live** (no real users), the reviewing session merges its own
+PR with "Squash and merge" once its Opus review is clean and the Actions run is
+green - every PR, migrations included. A mistake reaches no user and is fixed
+forward; the goal is fast iteration to the MVP, and the quality bar is the Opus
+review, not a human click.
+
+**At go-live** a human merge gate turns on for the prod-risk class only - a PR
+whose files touch a migration (`**/migrations/**`, `*.sql`), a deploy change
+(`/deploy/`, `docker-compose*`, `docker-stack*`, `Dockerfile`, deploy scripts),
+or secrets/sign-on (`*.env*`, `**/secret*`, `oidc.py`, `sign_in.py`,
+`routes_auth.py`). Such a PR posts `Ready to merge: YES` and waits for Sam or
+Dean to click; everything else keeps merging itself.
+
 ## 6. WIP limits - a hard cap on what waits on a human
 
 Per person, a **hard cap of 3** on (In Review + cards whose Handoff names them +
@@ -139,6 +165,14 @@ This list is also in the shared CLAUDE.md and is not overridable by any other
 instruction, project file, or confidence level. The matching review paths
 (migrations, `*.sql`, auth, deploy) are owned by Sam in CODEOWNERS so they
 auto-request his review as well.
+
+Phase note (pivot, 2026-10-11): before a repo goes live, a prod-risk technical
+change (a migration, a deploy, auth/secrets plumbing) is built and merged by the
+reviewing session on a clean Opus review - it reaches no user, so the merge is
+not a stop. What still stops for the owning human at any phase is a genuine
+product or policy decision (what the app does for users) and anything touching
+real money or real PII (personnel data counts). At go-live the merge gate for
+the prod-risk class (rule 5) turns on.
 
 ## 8. Authority and lanes
 

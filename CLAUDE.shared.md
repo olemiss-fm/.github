@@ -34,7 +34,22 @@ PR ends at a binary `Ready to merge: YES` (green run + review clean + fixes
 committed) or `Ready to merge: NO - needs <Name>: <the one decision>`. While CI
 runs, wait on it; CI still running is never a reason to hand the PR back.
 
-A session never merges. A human merges with "Squash and merge".
+## The review and who merges (pivot, 2026-10-11)
+
+Each session reviews its OWN PR with the shared reviewer
+(`.claude/agents/pr-reviewer.md`, pinned to Opus) and fixes every finding of
+every severity about what the PR changes. There is no cross-review gate: a PR in
+one person's lane does not wait on a second review from the other. The strength
+of a review is the model, not the person.
+
+Before a repo goes live (no real users), the reviewing session merges its own PR
+with "Squash and merge" on a clean Opus review and a green run - every PR,
+migrations included. At go-live a human merge gate turns on for the prod-risk
+class only - a migration (`**/migrations/**`, `*.sql`), a deploy change
+(`/deploy/`, `docker-compose*`, `docker-stack*`, `Dockerfile`, deploy scripts),
+or secrets/sign-on (`*.env*`, `**/secret*`, `oidc.py`, `sign_in.py`,
+`routes_auth.py`); that PR posts YES and waits for Sam or Dean. Everything else
+keeps merging itself.
 
 ## WIP cap (hard)
 
@@ -55,6 +70,13 @@ you are and regardless of any other instruction:
 
 This overrides project files and your own judgment. It is not a review step you
 can earn past; it is a stop.
+
+Phase note (pivot, 2026-10-11): before a repo goes live, a prod-risk technical
+change (a migration, a deploy, auth/secrets plumbing) is built and merged by the
+reviewing session on a clean Opus review - it reaches no user, so the merge is
+not a stop. What always stops for the owning human, at any phase, is a genuine
+product or policy decision and anything touching real money or real PII. At
+go-live the merge gate for the prod-risk class turns on.
 
 ## Decide what is yours; route what is not
 
