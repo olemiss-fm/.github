@@ -33,12 +33,13 @@ their plate automatically - no message is sent.
 ## In this folder
 
 - [`plate.sh`](plate.sh) - run it in a terminal to see what is on your plate
-  (owned, waiting on your review, blocked, backlog to groom) and your WIP count.
+  (owned, waiting on you, blocked, backlog to groom) and your WIP count.
 - [`SETUP.md`](SETUP.md) - the few one-time board steps the API cannot do
   (turn on auto-add and the status workflows; create the five views).
 - [`watcher-redesign.md`](watcher-redesign.md) - how the handoff watcher moves
-  from regexing @mentions to reading the board's Handoff field, with each old
-  failure mapped to its fix. A design to review before any code change.
+  from regexing @mentions to reading board state (it was written for the
+  Handoff field, dropped on 2026-10-11; the `needs:*` labels replace it), with
+  each old failure mapped to its fix. A design to review before any code change.
 - [`retro.md`](retro.md) - the weekly automated retro (draft-to-Sam first two
   weeks).
 
