@@ -152,7 +152,8 @@ Dean to click; everything else keeps merging itself.
 Per person, a **hard cap of 3** on the cards that wait on that person: (cards
 labelled `needs:<person>` + their own `needs:human-decision` cards + issues they
 own that sit in In Review). When a person's cap is full, **no new card starts for
-that person on a session's or the watcher's initiative** until one clears. This
+that person on a session's or the watcher's initiative, or at anyone else's
+request,** until one clears. This
 is what stops a human from opening a morning view with 11 things all waiting on
 them. The watcher enforces it by refusing to start new work for a capped person
 on its own (`plate.sh` in `project-management/` shows the count).

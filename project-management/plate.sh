@@ -71,7 +71,7 @@ wip="$(printf '%s' "$items" | jq -r --arg who "$who" --arg lbl "$needs_lbl" --ar
   "[.items[] | select($waits)] | length")"
 printf '\nWIP waiting on %s: %s of %s' "$who" "$wip" "$WIP_CAP"
 if [ "$wip" -ge "$WIP_CAP" ]; then
-  printf '  <- CAP FULL: sessions start nothing new for %s on their own (what %s asks for still starts).\n' "$who" "$who"
+  printf '  <- CAP FULL: start nothing new for %s until one clears, unless %s asks for it.\n' "$who" "$who"
 else
   printf '  (room for %s more)\n' "$((WIP_CAP - wip))"
 fi
