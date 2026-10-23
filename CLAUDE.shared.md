@@ -53,9 +53,12 @@ keeps merging itself.
 
 ## WIP cap (hard)
 
-Do not start a new card for a person who already has 3 cards in (In Review +
-Handoff names them + their own needs:human-decision). Capped means no new work
-starts for them until one clears.
+Do not start a new card for a person who already has 3 cards waiting on them
+(labelled `needs:<person>` + their own `needs:human-decision` + issues they own in
+In Review). Capped means no new work starts for them until one clears. A PR its
+own session will merge (no `needs:*` label; before go-live, every PR) does not
+count, so independent PRs may be open side by side, each cut from `main` and none
+built on another open PR.
 
 ## Stop for a human first (non-overridable, any confidence)
 

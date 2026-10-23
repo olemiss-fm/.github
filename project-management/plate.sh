@@ -22,6 +22,7 @@ if [ -z "$who" ]; then
   esac
 fi
 needs_me="needs: $(printf '%s' "$who" | tr '[:upper:]' '[:lower:]')"
+needs_lbl="needs:$(printf '%s' "$who" | tr '[:upper:]' '[:lower:]')"
 
 items="$(gh project item-list "$PROJECT_NUMBER" --owner "$OWNER_ORG" --format json --limit 200)"
 
@@ -49,9 +50,14 @@ section "Blocked (yours):" \
 section "Backlog (check these have machine-checkable AC before starting):" \
   "(.status==\"Backlog\")"
 
-# WIP: In Review owned by you, plus anything whose Handoff names you.
-wip="$(printf '%s' "$items" | jq -r --arg who "$who" --arg needs "$needs_me" \
-  '[.items[] | select((.status=="In Review" and .owner==$who) or .handoff==$needs)] | length')"
+# WIP: what waits on you (WAYS-OF-WORKING section 6): a card labelled needs:<you>,
+# your own needs:human-decision card, or an issue you own in In Review. A PR its own
+# session will merge (no needs:* label) waits on no person, so it does not count.
+wip="$(printf '%s' "$items" | jq -r --arg who "$who" --arg lbl "$needs_lbl" \
+  '[.items[] | select(.status != "Done") | select(
+      ((.labels // []) | index($lbl))
+      or (.owner==$who and ((.labels // []) | index("needs:human-decision")))
+      or (.status=="In Review" and .owner==$who and .content.type=="Issue"))] | length')"
 printf '\nWIP waiting on %s: %s of %s' "$who" "$wip" "$WIP_CAP"
 if [ "$wip" -ge "$WIP_CAP" ]; then
   printf '  <- CAP FULL: start no new work for %s until one clears.\n' "$who"

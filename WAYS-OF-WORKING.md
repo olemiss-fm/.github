@@ -145,9 +145,20 @@ Dean to click; everything else keeps merging itself.
 
 ## 6. WIP limits - a hard cap on what waits on a human
 
-Per person, a **hard cap of 3** on (In Review + cards whose Handoff names them +
-their own needs:human-decision cards). When a person's cap is full, **no new
-card starts for that person** until one clears. This is what stops a human from
+Per person, a **hard cap of 3** on the cards that wait on that person: (cards
+labelled `needs:<person>` + their own `needs:human-decision` cards + issues they
+own that sit in In Review). When a person's cap is full, **no new card starts for
+that person** until one clears.
+
+**A PR that its own session will merge does not count** (amended 2026-10-23).
+Before go-live every PR merges itself on a clean Opus review and a green run
+(section 5), so an In Review PR with no `needs:*` label waits on its session, not
+on a person, and any number of them may be open at once. A PR counts as soon as
+it waits on a person: it carries `needs:<person>` (a question only that person
+can answer, or, after go-live, a prod-risk PR waiting for a merge click).
+Why: Dean asked on 2026-10-23 whether he could start unrelated work while his
+last PR was still open. The cap protects human attention, and a PR that merges
+itself takes none. This is what stops a human from
 opening a morning view with 11 things all waiting on them. The watcher enforces
 it by refusing to start new work for a capped person; the humans honor it too.
 

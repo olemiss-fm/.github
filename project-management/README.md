@@ -12,8 +12,10 @@ How Sam and Dean drive work through Claude sessions. Full protocol:
 - **Done = a green Actions run.** No session and no human merges or approves a
   PR whose Actions run is red or missing. A human squash-merges; a session never
   does.
-- **A per-person cap of 3** on what waits on each human (In Review + handoffs
-  naming them). Full means no new work starts for that person until one clears.
+- **A per-person cap of 3** on what waits on each human (`needs:<person>`
+  labels, their own `needs:human-decision` cards, and issues they own in In
+  Review). A PR its own session will merge does not count. Full means no new
+  work starts for that person until one clears.
 
 ## How a handoff works
 
