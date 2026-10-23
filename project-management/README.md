@@ -17,7 +17,7 @@ How Sam and Dean drive work through Claude sessions. Full protocol:
   labels, their own `needs:human-decision` cards, and issues they own in In
   Review). A PR its own session will merge does not count. Full means sessions and
   the watcher start nothing new for that person on their own until one clears;
-  what the person asks for still starts.
+  what the person asks for themselves still starts.
 
 ## How a handoff works
 

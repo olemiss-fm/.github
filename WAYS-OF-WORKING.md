@@ -152,18 +152,20 @@ Dean to click; everything else keeps merging itself.
 Per person, a **hard cap of 3** on the cards that wait on that person: (cards
 labelled `needs:<person>` + their own `needs:human-decision` cards + issues they
 own that sit in In Review). When a person's cap is full, **no new card starts for
-that person** until one clears. This is what stops a human from opening a morning
-view with 11 things all waiting on them. The watcher enforces it by refusing to
-start new work for a capped person on its own (`plate.sh` in `project-management/`
-shows the count).
+that person on a session's or the watcher's initiative** until one clears. This
+is what stops a human from opening a morning view with 11 things all waiting on
+them. The watcher enforces it by refusing to start new work for a capped person
+on its own (`plate.sh` in `project-management/` shows the count).
 
-**The cap binds automation, never the person's own request** (amended
-2026-10-23). It stops the watcher and sessions from starting cards on their own
-for someone who is already full. When the person asks a session for a piece of
-work themselves, the session starts it, even when the cap is full; at most it
-says the count once, in one line ("you have 4 things waiting on you: #68, ...").
-Why: Dean was at 4 of 3 on asks that really waited on him and still wanted his
-sessions to build the next piece while those waited.
+**The cap never blocks the capped person's own request** (amended 2026-10-23).
+It stops the watcher and sessions from starting cards on their own for someone
+who is already full, and a request from anyone other than the capped person is
+held the same way. When the capped person asks a session for a piece of work
+themselves, the session starts it, even when the cap is full (the Definition of
+Ready and the stop-for-human gate still apply); at most it says the count once,
+in one line ("you have 4 things waiting on you: #68, ..."). Why: Dean was at 4
+of 3 on asks that really waited on him and still wanted his sessions to build the
+next piece while those waited.
 
 **A PR that its own session will merge does not count** (amended 2026-10-23).
 Before go-live every PR merges itself on a clean Opus review and a green run
