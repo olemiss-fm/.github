@@ -15,8 +15,10 @@ How Sam and Dean drive work through Claude sessions. Full protocol:
   squash-merges its own PR (WAYS-OF-WORKING section 5).
 - **A per-person cap of 3** on what waits on each human (`needs:<person>`
   labels, their own `needs:human-decision` cards, and issues they own in In
-  Review). A PR its own session will merge does not count. Full means no new
-  work starts for that person until one clears.
+  Review). A PR its own session will merge does not count. Full means nothing new
+  starts for that person, on a session's or the watcher's initiative or at
+  anyone else's request, until one clears; what the person asks for themselves
+  still starts.
 
 ## How a handoff works
 
