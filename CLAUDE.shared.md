@@ -8,14 +8,15 @@ board-and-gate layer. The full reasoning is in `.github` WAYS-OF-WORKING.md.
 ## The board is the source of truth
 
 Work is a card on the one board, with a Status, one Assignee (the current
-owner), an Owner field, and a Handoff value. Do not encode ownership or handoffs
-in issue titles or @mentions. A handoff is a state change:
+owner), an Owner field, and, when it waits on a person, a `needs:*` label (the
+handoff; the board's old Handoff field was dropped on 2026-10-11). Do not encode
+ownership or handoffs in issue titles or @mentions. A handoff is a state change:
 
 1. set Assignee + Owner to who it waits on,
-2. set Handoff to needs: sam / needs: dean / needs: human-decision,
+2. add the label `needs:sam` / `needs:dean` / `needs:human-decision`,
 3. set Status and, on a PR, request the CODEOWNERS reviewer.
 
-Acting on a handoff clears Handoff back to none. Starting work moves the card to
+Acting on a handoff removes the `needs:*` label. Starting work moves the card to
 In Progress (automatic when a PR opens).
 
 ## Definition of Ready - do not start un-ready work
@@ -53,9 +54,13 @@ keeps merging itself.
 
 ## WIP cap (hard)
 
-Do not start a new card for a person who already has 3 cards in (In Review +
-Handoff names them + their own needs:human-decision). Capped means no new work
-starts for them until one clears.
+Do not start a new card for a person who already has 3 cards waiting on them
+(labelled `needs:<person>` + their own `needs:human-decision` + issues they own in
+In Review). Capped means no new work starts for them until one clears. A PR its
+own session will merge (one with no `needs:*` label, which before go-live is
+every PR not waiting on a person's answer) does not count, so independent PRs
+may be open side by side, each cut from `main` and none built on another open
+PR.
 
 ## Stop for a human first (non-overridable, any confidence)
 
