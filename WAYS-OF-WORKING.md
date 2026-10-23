@@ -21,7 +21,9 @@ Each card has:
 - a **Status** (Backlog, Ready, In Progress, In Review, Blocked, Done);
 - exactly **one Assignee** - the current owner;
 - an **Owner** field matching that assignee (Sam or Dean);
-- a **Handoff** value (needs: sam / needs: dean / needs: human-decision / none);
+- when it waits on a person, a **handoff label** (`needs:sam` / `needs:dean` /
+  `needs:human-decision`; none when it waits on no one). The board's old Handoff
+  field was dropped on 2026-10-11; the label is the one "who is waiting" signal;
 - a work **type** (native Issue Type: Task, Bug, Feature, Epic, Chore, Spike);
 - a **priority** label (priority/p0..p3).
 
@@ -45,8 +47,10 @@ when it ships, never by a merge. So:
   while worked, In Review once a reviewer or verdict is on it, Done on merge),
   Owner from the author (the lane), Size from the diff, and Feature from the
   `Part of #<feature>` line. One line in the description is all a session writes.
-- **Handoff is still yours** (and the responder's): set it when a card waits on a
-  person. The sync never touches it.
+- **The handoff label is still yours** (and the responder's): add it when a card
+  waits on a person. The sync adds one only in a few set cases (a review that
+  asks for changes, a feature whose last SPEC box is ticked, and after go-live
+  the merge gate).
 
 ## 2. Definition of Ready (DoR) - the backbone
 
@@ -93,17 +97,17 @@ To hand a card to the other person or to flag it needs a human call, a session
 (or a human) does all three, in this order:
 
 1. Set the **Assignee** and the **Owner** field to who it now waits on.
-2. Set **Handoff** to needs: sam / needs: dean / needs: human-decision.
+2. Add the label `needs:sam` / `needs:dean` / `needs:human-decision`.
 3. Set **Status** (usually In Review or Blocked), and on a PR **request the
    CODEOWNERS reviewer**.
 
 It does **not** rely on an @mention to move work. @mentions still happen and
 still notify, but the board state is what the watcher reads and what the other
-person's morning view shows. Acting on a handoff **clears Handoff back to none**
+person's morning view shows. Acting on a handoff **removes the `needs:*` label**
 and (on the board) re-assigns to whoever carries it next.
 
-A **question that needs a human call** is a first-class card: Handoff =
-needs: human-decision, label `needs:human-decision`, Status usually Blocked.
+A **question that needs a human call** is a first-class card: label
+`needs:human-decision`, Status usually Blocked.
 This replaces the old `question`-label ledger that used to rot - a question is
 now a visible, owned, waiting card, not a tag lost in a list.
 
@@ -148,19 +152,21 @@ Dean to click; everything else keeps merging itself.
 Per person, a **hard cap of 3** on the cards that wait on that person: (cards
 labelled `needs:<person>` + their own `needs:human-decision` cards + issues they
 own that sit in In Review). When a person's cap is full, **no new card starts for
-that person** until one clears.
+that person** until one clears. This is what stops a human from opening a morning
+view with 11 things all waiting on them. The watcher enforces it by refusing to
+start new work for a capped person; the humans honor it too (`plate.sh` in
+`project-management/` shows the count).
 
 **A PR that its own session will merge does not count** (amended 2026-10-23).
 Before go-live every PR merges itself on a clean Opus review and a green run
 (section 5), so an In Review PR with no `needs:*` label waits on its session, not
 on a person, and any number of them may be open at once. A PR counts as soon as
-it waits on a person: it carries `needs:<person>` (a question only that person
-can answer, or, after go-live, a prod-risk PR waiting for a merge click).
-Why: Dean asked on 2026-10-23 whether he could start unrelated work while his
-last PR was still open. The cap protects human attention, and a PR that merges
-itself takes none. This is what stops a human from
-opening a morning view with 11 things all waiting on them. The watcher enforces
-it by refusing to start new work for a capped person; the humans honor it too.
+it carries `needs:<person>`: a question only that person can answer, or, after
+go-live, a prod-risk PR waiting for Sam's merge click (fm-comp-time's
+`pr_board_sync.py` adds `needs:sam` when a PR not written by Sam touches Sam's
+lane). Why: Dean asked on 2026-10-23 whether he could start unrelated work while
+his last PR was still open. The cap protects human attention, and a PR that
+merges itself takes none.
 
 ## 7. Stop-for-human gate (non-overridable, any confidence)
 

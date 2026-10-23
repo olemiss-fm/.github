@@ -8,10 +8,11 @@ How Sam and Dean drive work through Claude sessions. Full protocol:
 
 - **The board is the source of truth.** Every work item is an Issue on one
   Projects v2 board (fm-comp-time: org project #19), with a Status, exactly one
-  Assignee (the current owner), an Owner field, and a Handoff value.
+  Assignee (the current owner), an Owner field, and a `needs:*` label when it
+  waits on a person.
 - **Done = a green Actions run.** No session and no human merges or approves a
-  PR whose Actions run is red or missing. A human squash-merges; a session never
-  does.
+  PR whose Actions run is red or missing. Before go-live the reviewing session
+  squash-merges its own PR (WAYS-OF-WORKING section 5).
 - **A per-person cap of 3** on what waits on each human (`needs:<person>`
   labels, their own `needs:human-decision` cards, and issues they own in In
   Review). A PR its own session will merge does not count. Full means no new
@@ -22,11 +23,11 @@ How Sam and Dean drive work through Claude sessions. Full protocol:
 A handoff is a state change, never an @mention:
 
 1. set the **Assignee** and **Owner** field to who it now waits on,
-2. set **Handoff** to `needs: sam` / `needs: dean` / `needs: human-decision`,
+2. add the label `needs:sam` / `needs:dean` / `needs:human-decision`,
 3. set **Status** (In Review or Blocked) and, on a PR, request the CODEOWNERS
    reviewer.
 
-Acting on a handoff clears Handoff back to `none`. The other person sees it on
+Acting on a handoff removes the label. The other person sees it on
 their plate automatically - no message is sent.
 
 ## In this folder
