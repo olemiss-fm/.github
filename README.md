@@ -1,69 +1,74 @@
-# Ole Miss — Facilities Management
+# .github
 
-We're the technology team behind **UM Facilities Management**. We build and maintain the software that keeps campus space, assets, work orders, and operational data in sync across Workday, Planon, Banner, StarRez, and the rest of the systems Facilities depends on.
+**The olemiss-fm organization profile and shared GitHub configuration, for everyone who works in
+the org's repositories.**
 
-🌐 [facilitiesmanagement.olemiss.edu](https://facilitiesmanagement.olemiss.edu) · 🔌 [api.fm.olemiss.edu](https://api.fm.olemiss.edu)
+GitHub reads this repository for the organization front page and for defaults that apply to every
+repo. It also holds the rules the org follows: how READMEs are written, how work is driven, and
+how to report a security issue.
+
+**Status:** Production. The profile is live on the org page and the standards are in daily use.
+**Owner:** Sam Stubbs.
+**Board:** none. The shared rules were piloted on the [fm-comp-time board](https://github.com/orgs/olemiss-fm/projects/19).
+
+## What it does
+
+- **Org front page.** `profile/README.md` is what visitors see at
+  [github.com/olemiss-fm](https://github.com/olemiss-fm): who we are, the repository map, and how
+  we work.
+- **README standard.** `README-STANDARD.md` is the shape every repository README follows.
+- **Ways of working.** `WAYS-OF-WORKING.md` is how Sam and Dean drive work through Claude
+  sessions; `CLAUDE.shared.md` is the session rules each repo imports.
+- **Security policy.** `SECURITY.md` says how to report a vulnerability in any org repo.
+- **Shared labels.** `labels.yml` is the label set, authored org-wide and so far applied to
+  fm-comp-time only.
+
+## Repository layout
+
+| Path | What is in it |
+|---|---|
+| `profile/README.md` | The org front page |
+| `README-STANDARD.md` | The README standard |
+| `WAYS-OF-WORKING.md` | The work protocol: board, owners, handoffs |
+| `CLAUDE.shared.md` | Cross-repo session rules, imported by each repo's `CLAUDE.md` |
+| `SECURITY.md` | The security policy for every org repo |
+| `labels.yml` | Shared label taxonomy |
+| `project-management/` | Board setup, the `plate.sh` helper, the weekly retro, the handoff watcher design |
+| `CODEOWNERS` | Maintainer review is required for every change |
+| `.github/dependabot.yml` | Dependency updates for this repo |
+
+## Development
+
+There is nothing to build or run. Change a file on a branch and open a pull request; a maintainer
+reviews it. This repository is **public**, so write nothing in it that is not safe for the
+internet: no hostnames of internal machines, no addresses, no credentials.
+
+When the repository list changes (a repo is added, archived, or changes status), update the table
+in `profile/README.md` in the same pull request:
+
+```bash
+gh repo list olemiss-fm --no-archived --json name,description
+```
+
+## Deploy
+
+Merging to `main` publishes the change: GitHub renders `profile/README.md` on the org page
+immediately. There are no workflows and no releases.
+
+## Documentation
+
+| Read | For |
+|---|---|
+| [`README-STANDARD.md`](README-STANDARD.md) | Writing or checking a repository README |
+| [`WAYS-OF-WORKING.md`](WAYS-OF-WORKING.md) | How work moves from request to done |
+| [`project-management/README.md`](project-management/README.md) | Running the board |
+| [`SECURITY.md`](SECURITY.md) | Reporting a vulnerability |
 
 ---
 
-## What we work on
+## Across the org
 
-- **Integration as a Service** — Bidirectional sync between systems of record (Workday HR, Banner SIS, StarRez Housing) and our operational system (Planon IWMS), so every system sees the same people, spaces, and assets.
-- **Read APIs for campus** — A single FastAPI surface (`api.fm.olemiss.edu`) other UM apps call instead of hitting Planon directly.
-- **Operational tooling** — A landing page, utility billing automation, uptime monitoring, and infrastructure scanning that keep the lights on.
-
-## Repositories
-
-### Production
-
-| Repo | What it is | Stack |
-|---|---|---|
-| [`FMAPI`](https://github.com/olemiss-fm/FMAPI) | Integration middleware + read APIs. The system of integration for FM. | Python · FastAPI · Postgres · Docker |
-| [`landing_page`](https://github.com/olemiss-fm/landing_page) | Centralized landing page for FM tools and resources. | JavaScript · Docker |
-| [`utility_billing`](https://github.com/olemiss-fm/utility_billing) | Utility billing app + automation scripts for Oxford, Delta, Hopewell, Lafayette, MaxxSouth, NEMEPA, and Twin Eagle. | Python · Django |
-| [`uptime`](https://github.com/olemiss-fm/uptime) | Uptime monitor for FM services with Slack notifications. | Node.js · Postgres · Docker |
-| [`network_scanner`](https://github.com/olemiss-fm/network_scanner) | Network scanning for FM systems — Nmap, SNMP, BACnet, WMI. | Python |
-
-### In progress
-
-| Repo | What it is | Stack |
-|---|---|---|
-| [`fmapiv2`](https://github.com/olemiss-fm/fmapiv2) | Planned next-generation FMAPI rewrite. | Python · MongoDB · RabbitMQ · GraphQL |
-
-### Legacy / audit pending
-
-| Repo | What it is | Stack |
-|---|---|---|
-| [`planon_and_arc_working_scripts`](https://github.com/olemiss-fm/planon_and_arc_working_scripts) | Pre-FMAPI Planon + ArcGIS scratch scripts; audit pending before consolidation. | Python |
-| [`docs`](https://github.com/olemiss-fm/docs) | Legacy internal documentation site; superseded by per-repo `docs/`. | HTML · Docker |
-
-## Architecture, in one diagram
-
-```
-Workday RaaS    Planon REST    Banner    StarRez
-      │              │            │         │
-      └──────────────┴─────┬──────┴─────────┘
-                           ▼
-                ┌──────────────────────┐
-                │       FMAPI          │  scheduled syncs
-                │  pipelines + cache   │  +  read APIs
-                └──────────┬───────────┘
-                           ▼
-                  api.fm.olemiss.edu
-                           │
-              ┌────────────┴────────────┐
-              ▼            ▼            ▼
-          campus apps   ArcGIS    other consumers
-```
-
-## How we work
-
-- **Issues** are typed (Task / Feature / Bug), labeled, and milestoned by phase. We use GitHub `blockedBy` relationships for dependencies.
-- **PRs** target `main`, squash-merge by default. Commit messages explain the *why*, not just the *what*.
-- **Migrations** are numbered SQL files — the file is the source of truth.
-- **Docs that change with the code** live alongside the code, not in a wiki.
-- **Credentials never live in source.** Read from environment variables, gitignored `.env` files, or a secrets manager.
-
-## Get in touch
-
-FM Technology Resources · University of Mississippi · Oxford, MS
+- [Org overview and repository list](https://github.com/olemiss-fm)
+- [All open issues](https://github.com/issues?q=is%3Aissue+is%3Aopen+org%3Aolemiss-fm+sort%3Aupdated)
+- [All open pull requests](https://github.com/pulls?q=is%3Apr+is%3Aopen+org%3Aolemiss-fm+sort%3Aupdated)
+- [README standard](https://github.com/olemiss-fm/.github/blob/main/README-STANDARD.md)

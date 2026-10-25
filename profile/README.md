@@ -1,68 +1,96 @@
-# Ole Miss — Facilities Management
+# Ole Miss - Facilities Management
 
-We're the technology team behind **UM Facilities Management**. We build and maintain the software that keeps campus space, assets, work orders, and operational data in sync across Workday, Planon, Banner, StarRez, and the rest of the systems Facilities depends on.
+We are the technology team behind **UM Facilities Management**. We build and run the software
+that keeps campus space, assets, work orders, utilities, and staff time in sync across Workday,
+Planon, Banner, StarRez, and the other systems Facilities depends on.
 
-🌐 [facilitiesmanagement.olemiss.edu](https://facilitiesmanagement.olemiss.edu) · 🔌 [api.fm.olemiss.edu](https://api.fm.olemiss.edu)
+[facilitiesmanagement.olemiss.edu](https://facilitiesmanagement.olemiss.edu) | [api.fm.olemiss.edu](https://api.fm.olemiss.edu)
 
 ---
 
 ## What we work on
 
-- **Integration as a Service** — Bidirectional sync between systems of record (Workday HR, Banner SIS, StarRez Housing) and our operational system (Planon IWMS), so every system sees the same people, spaces, and assets.
-- **Read APIs for campus** — A single FastAPI surface (`api.fm.olemiss.edu`) other UM apps call instead of hitting Planon directly.
-- **Operational tooling** — A landing page, utility billing automation, uptime monitoring, and infrastructure scanning that keep the lights on.
+- **Integration as a service.** Sync between the systems of record (Workday HR, Banner SIS,
+  StarRez housing, ArcGIS) and our operational system (Planon), so every system sees the same
+  people, spaces, and assets.
+- **Read APIs for campus.** One FastAPI surface (`api.fm.olemiss.edu`) that other UM apps call
+  instead of reaching into Planon.
+- **Business applications.** Comp time for exempt staff, utility billing, the FM landing page,
+  and the wall displays and kiosks.
+- **Operations.** Runbooks, audits, monitoring, and the shared design system that keep the
+  platform healthy and consistent.
 
 ## Repositories
 
+Every repository has a README written to the [README standard](https://github.com/olemiss-fm/.github/blob/main/README-STANDARD.md). Statuses
+use the standard's four values. Most repositories are private; this list is the map.
+
 ### Production
 
-| Repo | What it is | Stack |
-|---|---|---|
-| [`FMAPI`](https://github.com/olemiss-fm/FMAPI) | Integration middleware + read APIs. The system of integration for FM. | Python · FastAPI · Postgres · Docker |
-| [`landing_page`](https://github.com/olemiss-fm/landing_page) | Centralized landing page for FM tools and resources. | JavaScript · Docker |
-| [`utility_billing`](https://github.com/olemiss-fm/utility_billing) | Utility billing app + automation scripts for Oxford, Delta, Hopewell, Lafayette, MaxxSouth, NEMEPA, and Twin Eagle. | Python · Django |
-| [`uptime`](https://github.com/olemiss-fm/uptime) | Uptime monitor for FM services with Slack notifications. | Node.js · Postgres · Docker |
-| [`network_scanner`](https://github.com/olemiss-fm/network_scanner) | Network scanning for FM systems — Nmap, SNMP, BACnet, WMI. | Python |
+| Repo | What it is |
+|---|---|
+| [`FMAPI`](https://github.com/olemiss-fm/FMAPI) | Integration-as-a-service middleware connecting Workday, Planon, Banner, and StarRez, with the read APIs on top |
+| [`landing_page`](https://github.com/olemiss-fm/landing_page) | The FM landing page: quick access to the apps, tools, and services FM runs |
+| [`utility_billing`](https://github.com/olemiss-fm/utility_billing) | Utility billing application and vendor-report automation; being replaced by `fm-utilities-next` |
+| [`fm-display-console`](https://github.com/olemiss-fm/fm-display-console) | Admin console for the display control plane: assign dashboards to wall screens and supervise kiosks |
+| [`fm-ui-kit`](https://github.com/olemiss-fm/fm-ui-kit) | The FM design system: tokens, components, and agent-readable rules |
+| [`ops`](https://github.com/olemiss-fm/ops) | Org-wide infrastructure, runbooks, audits, and automation |
 
-### In progress
+### In development
 
-| Repo | What it is | Stack |
-|---|---|---|
-| [`fmapiv2`](https://github.com/olemiss-fm/fmapiv2) | Planned next-generation FMAPI rewrite. | Python · MongoDB · RabbitMQ · GraphQL |
+| Repo | What it is |
+|---|---|
+| [`fm-comp-time`](https://github.com/olemiss-fm/fm-comp-time) | Comp Time Manager: weekly timecards and comp time balances for salaried staff. Replaces the Access app; cutover target 2026-11-02 |
+| [`fm-utilities-next`](https://github.com/olemiss-fm/fm-utilities-next) | Consolidated utility billing platform. Replaces the FM-Utilities Access app and `utility_billing` |
+| [`planon`](https://github.com/olemiss-fm/planon) | Source of the Ole Miss Planon AppBuilder app (business rules and endpoints that run inside Planon) |
+| [`network_scanner`](https://github.com/olemiss-fm/network_scanner) | Network scanning for building-automation devices with Nmap, SNMP, BACnet, and WMI |
 
-### Legacy
+### Reference
 
-| Repo | What it is | Stack |
-|---|---|---|
-| [`docs`](https://github.com/olemiss-fm/docs) | Legacy internal documentation site; superseded by per-repo `docs/`. | HTML · Docker |
+| Repo | What it is |
+|---|---|
+| [`fm-corpus`](https://github.com/olemiss-fm/fm-corpus) | Curated knowledge that has no other git home, indexed for the FM knowledge search |
+| [`postman`](https://github.com/olemiss-fm/postman) | Version-controlled copy of the olemiss-fm Postman workspace |
+| [`CompTimeManager_FE_Master.accdb.src`](https://github.com/olemiss-fm/CompTimeManager_FE_Master.accdb.src) | Exported source of the Comp Time Manager Access front end, kept for reading |
+| [`FM-Utilities_fe.accdb.src`](https://github.com/olemiss-fm/FM-Utilities_fe.accdb.src) | Exported source of the FM-Utilities Access front end |
+| [`FM-Utilities_be.accdb.src`](https://github.com/olemiss-fm/FM-Utilities_be.accdb.src) | Exported source of the FM-Utilities Access back-end database |
+
+Retired repositories (`uptime`, `fmapiv2`, `docs`, and others) are archived or removed and are
+not listed here.
 
 ## Architecture, in one diagram
 
 ```
-Workday RaaS    Planon REST    Banner    StarRez
-      │              │            │         │
-      └──────────────┴─────┬──────┴─────────┘
-                           ▼
-                ┌──────────────────────┐
-                │       FMAPI          │  scheduled syncs
-                │  pipelines + cache   │  +  read APIs
-                └──────────┬───────────┘
-                           ▼
-                  api.fm.olemiss.edu
-                           │
-              ┌────────────┴────────────┐
-              ▼            ▼            ▼
-          campus apps   ArcGIS    other consumers
+ Workday RaaS    Planon REST    Banner    StarRez    ArcGIS
+      |              |            |          |          |
+      +--------------+-----+------+----------+----------+
+                           v
+                +------------------------+
+                |         FMAPI          |   scheduled syncs
+                |   pipelines + cache    |   + read APIs
+                +-----------+------------+
+                            v
+                   api.fm.olemiss.edu
+                            |
+        +-------------------+-------------------+
+        v                   v                   v
+   FM business apps    display console     other consumers
+ (comp time, utilities, (wall screens)     (campus apps, ArcGIS)
+   landing page)
 ```
 
 ## How we work
 
-- **Issues** are typed (Task / Feature / Bug), labeled, and milestoned by phase. We use GitHub `blockedBy` relationships for dependencies.
-- **PRs** target `main`, squash-merge by default. Commit messages explain the *why*, not just the *what*.
-- **Migrations** are numbered SQL files — the file is the source of truth.
-- **Docs that change with the code** live alongside the code, not in a wiki.
-- **Credentials never live in source.** Read from environment variables, gitignored `.env` files, or a secrets manager.
+- **The board is the source of truth.** Work is an issue on a project board, not a chat message.
+  The full protocol is in [`WAYS-OF-WORKING.md`](https://github.com/olemiss-fm/.github/blob/main/WAYS-OF-WORKING.md).
+- **Pull requests** target `main` and are squash-merged, with conventional commit titles. A pull
+  request that changes what a README describes updates the README in the same change.
+- **READMEs follow one standard**: [`README-STANDARD.md`](https://github.com/olemiss-fm/.github/blob/main/README-STANDARD.md).
+- **Migrations** are numbered SQL files; the file is the source of truth.
+- **Docs that change with the code** live next to the code, not in a wiki.
+- **Credentials never live in source.** They come from the environment or a secrets manager.
 
 ## Get in touch
 
-FM Technology Resources · University of Mississippi · Oxford, MS
+FM Technology Resources, University of Mississippi, Oxford, MS. To report a security issue, see
+[`SECURITY.md`](https://github.com/olemiss-fm/.github/blob/main/SECURITY.md).
