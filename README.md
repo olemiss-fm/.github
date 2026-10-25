@@ -7,8 +7,8 @@ GitHub reads this repository for the organization front page and for defaults th
 repo. It also holds the rules the org follows: how READMEs are written, how work is driven, and
 how to report a security issue.
 
-**Status:** Production. The profile is live on the org page and the standards are in daily use.
-**Owner:** Sam Stubbs.
+**Status:** Production. The profile is live on the org page and the standards are in daily use.  
+**Owner:** Sam Stubbs.  
 **Board:** none. The shared rules were piloted on the [fm-comp-time board](https://github.com/orgs/olemiss-fm/projects/19).
 
 ## What it does

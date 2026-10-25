@@ -49,7 +49,7 @@ use the standard's four values. Most repositories are private; this list is the 
 
 | Repo | What it is |
 |---|---|
-| [`.github`](https://github.com/olemiss-fm/.github) | This organization's front door: this page, the README standard, ways of working, and shared templates |
+| [`.github`](https://github.com/olemiss-fm/.github) | This organization's front door: this page, the README standard, ways of working, security policy and shared labels |
 | [`fm-corpus`](https://github.com/olemiss-fm/fm-corpus) | Curated knowledge that has no other git home, indexed for the FM knowledge search |
 | [`postman`](https://github.com/olemiss-fm/postman) | Version-controlled copy of the olemiss-fm Postman workspace |
 | [`CompTimeManager_FE_Master.accdb.src`](https://github.com/olemiss-fm/CompTimeManager_FE_Master.accdb.src) | Exported source of the Comp Time Manager Access front end, kept for reading |
