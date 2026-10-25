@@ -33,22 +33,23 @@ use the standard's four values. Most repositories are private; this list is the 
 | [`landing_page`](https://github.com/olemiss-fm/landing_page) | The FM landing page: quick access to the apps, tools, and services FM runs |
 | [`utility_billing`](https://github.com/olemiss-fm/utility_billing) | Utility billing application and vendor-report automation; being replaced by `fm-utilities-next` |
 | [`fm-display-console`](https://github.com/olemiss-fm/fm-display-console) | Admin console for the display control plane: assign dashboards to wall screens and supervise kiosks |
-| [`fm-ui-kit`](https://github.com/olemiss-fm/fm-ui-kit) | The FM design system: tokens, components, and agent-readable rules |
+| [`fm-ui-kit`](https://github.com/olemiss-fm/fm-ui-kit) | The FM design system: tokens, components, and agent-readable rules; apps copy it in |
 | [`ops`](https://github.com/olemiss-fm/ops) | Org-wide infrastructure, runbooks, audits, and automation |
 
 ### In development
 
 | Repo | What it is |
 |---|---|
-| [`fm-comp-time`](https://github.com/olemiss-fm/fm-comp-time) | Comp Time Manager: weekly timecards and comp time balances for salaried staff. Replaces the Access app; cutover target 2026-11-02 |
+| [`fm-comp-time`](https://github.com/olemiss-fm/fm-comp-time) | Comp Time Manager: weekly timecards and comp time balances for salaried staff. Replaces the Access app; cutover planned for November 2026 |
 | [`fm-utilities-next`](https://github.com/olemiss-fm/fm-utilities-next) | Consolidated utility billing platform. Replaces the FM-Utilities Access app and `utility_billing` |
 | [`planon`](https://github.com/olemiss-fm/planon) | Source of the Ole Miss Planon AppBuilder app (business rules and endpoints that run inside Planon) |
-| [`network_scanner`](https://github.com/olemiss-fm/network_scanner) | Network scanning for building-automation devices with Nmap, SNMP, BACnet, and WMI |
+| [`network_scanner`](https://github.com/olemiss-fm/network_scanner) | Network discovery for building-automation devices; does not run yet |
 
 ### Reference
 
 | Repo | What it is |
 |---|---|
+| [`.github`](https://github.com/olemiss-fm/.github) | This organization's front door: this page, the README standard, ways of working, and shared templates |
 | [`fm-corpus`](https://github.com/olemiss-fm/fm-corpus) | Curated knowledge that has no other git home, indexed for the FM knowledge search |
 | [`postman`](https://github.com/olemiss-fm/postman) | Version-controlled copy of the olemiss-fm Postman workspace |
 | [`CompTimeManager_FE_Master.accdb.src`](https://github.com/olemiss-fm/CompTimeManager_FE_Master.accdb.src) | Exported source of the Comp Time Manager Access front end, kept for reading |

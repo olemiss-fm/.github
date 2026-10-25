@@ -24,8 +24,8 @@ that has nothing to say (a library has no Deploy section); do not add an empty o
 | 1 | `# <repo-name>` | The repository name exactly as GitHub shows it. |
 | 2 | Badges | Only for workflows that exist on `main`: deploy first, then secret scan, then others. None if there are none. |
 | 3 | Summary (no heading) | One bold sentence: what it is and who it is for. Then two to four sentences of plain context: what it replaces or connects, why it exists. |
-| 4 | Facts block (no heading) | One line each, bold label: **Status:**, **Production:** (URL, if any), **Owner:** (the person who decides what it does), **Board:** (project board, if any). |
-| 5 | `## What it does` | What a user or the business gets, in plain words. Bullets that start with a bold noun. No code. |
+| 4 | Facts block (no heading) | One line each, bold label: **Status:**, **Production:** (URL, if any), **Owner:** (the person who decides what it does), **Board:** (project board, if any). End every line but the last with two spaces so GitHub keeps the line breaks. |
+| 5 | `## What it does` | What a user or the business gets, in plain words. Bullets that start with a bold noun. No code. A **Reference** repo uses `## What it holds` instead: what is in it and what it is for. |
 | 6 | `## How it is built` | Stack, data sources, where it runs, and a small ASCII diagram if one helps. |
 | 7 | `## Repository layout` | A table of top-level directories (`Path` / `What is in it`), or a short tree. Only paths that exist. |
 | 8 | `## Development` | How to run it and test it. Docker, databases and test stacks run on fm-devdock, never the engineering VM. Commands in fenced `bash` blocks. |
@@ -52,6 +52,8 @@ Use exactly one of:
   `LC_ALL=C grep -nP '[^\x00-\x7F]' README.md`; it must print nothing.
 - **Sentence-case headings.** `## How it is built`, not `## How It Is Built`.
 - **Plain, active words.** Name who does what. Absolute dates (`2026-11-02`), never "next week".
+- **Plain words before jargon.** The first time a product name, acronym, or internal term appears
+  (Planon, RunBill, MCP, ACC), give it a few plain words.
 - **Code font** for paths, commands, identifiers, hostnames, and URLs used as values; bold for
   UI names and for labels in the facts block. Relative links for files in the repo.
 - **True today.** Every path, command, URL, workflow, and number must match `main`. A README
