@@ -35,6 +35,7 @@ use the standard's four values. Most repositories are private; this list is the 
 | [`fm-display-console`](https://github.com/olemiss-fm/fm-display-console) | Admin console for the display control plane: assign dashboards to wall screens and supervise kiosks |
 | [`fm-ui-kit`](https://github.com/olemiss-fm/fm-ui-kit) | The FM design system: tokens, components, and agent-readable rules; apps copy it in |
 | [`ops`](https://github.com/olemiss-fm/ops) | Org-wide infrastructure, runbooks, audits, and automation |
+| [`.github`](https://github.com/olemiss-fm/.github) | This organization's front door: this page, the README standard, ways of working, security policy and shared labels |
 
 ### In development
 
@@ -49,7 +50,6 @@ use the standard's four values. Most repositories are private; this list is the 
 
 | Repo | What it is |
 |---|---|
-| [`.github`](https://github.com/olemiss-fm/.github) | This organization's front door: this page, the README standard, ways of working, security policy and shared labels |
 | [`fm-corpus`](https://github.com/olemiss-fm/fm-corpus) | Curated knowledge that has no other git home, indexed for the FM knowledge search |
 | [`postman`](https://github.com/olemiss-fm/postman) | Version-controlled copy of the olemiss-fm Postman workspace |
 | [`CompTimeManager_FE_Master.accdb.src`](https://github.com/olemiss-fm/CompTimeManager_FE_Master.accdb.src) | Exported source of the Comp Time Manager Access front end, kept for reading |
