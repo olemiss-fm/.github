@@ -2,10 +2,8 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
 # Cadence retuned 2026-10-29 (fewer bump PRs, so fewer CI runs and deploys):
-#   - app libraries stay WEEKLY.
-#   - docker, github-actions and CI-only tooling run MONTHLY: their bumps
-#     change CI or the base image, rarely fix anything, and each one cost a
-#     full CI run.
+#   - github-actions runs MONTHLY: those bumps change only CI,
+#     rarely fix anything, and each one cost a full CI run.
 #   - security updates are unchanged: they ignore schedule, cooldown and
 #     grouping, and still open as soon as an advisory lands.
 
