@@ -1,14 +1,19 @@
 # Dependabot configuration for the .github org config repo
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Cadence retuned 2026-10-29 (fewer bump PRs, so fewer CI runs and deploys):
+#   - github-actions runs MONTHLY: those bumps change only CI,
+#     rarely fix anything, and each one cost a full CI run.
+#   - security updates are unchanged: they ignore schedule, cooldown and
+#     grouping, and still open as soon as an advisory lands.
 
 version: 2
 updates:
-  # GitHub Actions — auto-monitored if any workflows are added in the future
+  # GitHub Actions - auto-monitored if any workflows are added in the future
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
     open-pull-requests-limit: 5
     reviewers:
       - "olemiss-fm/maintainers"
