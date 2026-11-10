@@ -1,0 +1,74 @@
+name: Quality gates
+
+# Senior-engineer review, automated: each tool runs in a digest-pinned container and the
+# ratchet (scripts/quality/ratchet.py) keeps only findings on lines this PR adds or edits,
+# then updates ONE sticky PR comment. See docs/quality-gates.md for how to read a result.
+# QUALITY_MODE is the single switch: `report` comments and passes, `enforce` fails the check
+# when a finding sits on a changed line. Runs on a GitHub-hosted runner: this repo is public,
+# so it is free there, and the org runner group (fm-ci) does not serve public repos.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: quality-gates-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  QUALITY_MODE: report
+  SHELLCHECK_IMAGE: koalaman/shellcheck@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb # v0.10.0
+  ACTIONLINT_IMAGE: rhysd/actionlint@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 # 1.7.7
+
+jobs:
+  gates:
+    name: changed-lines ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        # GitHub's default is bash -e; the gate steps handle tool exit codes themselves
+        shell: bash {0}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RATCHET: python3 scripts/quality/ratchet.py --repo ${{ github.repository }} --pr ${{ github.event.pull_request.number }} --base origin/${{ github.base_ref }} --strip-prefix /repo/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Prepare
+        run: |
+          mkdir -p "$RUNNER_TEMP/quality"
+          # flags every tool container shares: read-only repo at /repo, run as the runner user
+          echo "DR=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo" >> "$GITHUB_ENV"
+
+      - name: shellcheck
+        if: ${{ !cancelled() }}
+        run: |
+          set -uo pipefail
+          out="$RUNNER_TEMP/quality/shellcheck.json"
+          git ls-files -z '*.sh' > "$RUNNER_TEMP/quality/shellcheck.list"
+          if [ -s "$RUNNER_TEMP/quality/shellcheck.list" ]; then
+            # shellcheck disable=SC2086
+            xargs -0 docker run $DR "$SHELLCHECK_IMAGE" -f json < "$RUNNER_TEMP/quality/shellcheck.list" > "$out" || true
+          else
+            echo '[]' > "$out"
+          fi
+          # shellcheck disable=SC2086
+          $RATCHET --tool shellcheck --input "$out"
+
+      - name: actionlint
+        if: ${{ !cancelled() }}
+        run: |
+          set -uo pipefail
+          out="$RUNNER_TEMP/quality/actionlint.json"
+          # shellcheck disable=SC2086
+          docker run $DR "$ACTIONLINT_IMAGE" -format '{{json .}}' \
+            .github/workflows/*.yml > "$out" || true
+          # shellcheck disable=SC2086
+          $RATCHET --tool actionlint --input "$out"
