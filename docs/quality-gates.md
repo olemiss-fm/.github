@@ -5,7 +5,7 @@ shows the proof. Tracking issues: olemiss-fm/ops#751, olemiss-fm/ops#769 (one sh
 
 A quality-gates badge in a repo's README shows its latest PR run. In `report` mode green means
 the gates ran, not that they found nothing; once the repo is in `enforce` mode it also means
-that PR's changed lines had no findings.
+that PR's changed lines had no findings, apart from the always-report-only coverage sections.
 
 ## How the gate works
 
