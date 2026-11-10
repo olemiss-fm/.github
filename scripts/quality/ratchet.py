@@ -25,7 +25,7 @@ import sys
 from dataclasses import dataclass
 
 STICKY = "<!-- ratchet-sticky -->"
-DEFAULT_LIMIT = 25  # 8 sections x 25 lines x 240 chars stays under the 65536 char comment limit
+DEFAULT_LIMIT = 20  # 12 sections x 20 lines x 240 chars, plus headers, stays under the 65536 char comment limit
 MAX_LINE = 240
 
 
@@ -89,7 +89,8 @@ def _json(text):
     try:
         return json.loads(text)
     except ValueError as exc:
-        raise ToolOutputError(f"not JSON: {exc}") from exc
+        # the start of the text carries the workflow's reason when a tool did not run cleanly
+        raise ToolOutputError(f"not JSON: {exc}: {text.strip()[:200]!r}") from exc
 
 
 def _list(text, name):

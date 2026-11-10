@@ -10,7 +10,7 @@ calls it from a thin caller pinned to a commit SHA of this repo, and its job run
 repo, on that repo's runners (`fm-ci` by default, so 0 GitHub minutes). Each tool runs in a
 digest-pinned container. `scripts/quality/ratchet.py`, fetched from this repo at the same SHA
 as the workflow, then keeps only the
-findings that sit on lines the PR adds or edits (`git diff -U0 origin/main...HEAD`). Old code
+findings that sit on lines the PR adds or edits (`git diff -U0 origin/<base branch>...HEAD`). Old code
 the PR does not touch never fails the PR. That is the "ratchet": quality can only go up.
 
 All tools share ONE sticky PR comment, headed `Quality ratchet (changed lines only)`, with one
@@ -45,7 +45,7 @@ is worse than a red one. Vulture prints nothing when it is clean, so its step al
 exit code (0 clean, 3 dead code found, 1 a file it could not read or parse; anything else
 fails). Vulture skips a file it cannot read or parse, so the ratchet reports that file as
 "file not checked" on any line a PR changes in it.
-Each section lists at most 25 findings, each line cut at 240 characters, so the one comment
+Each section lists at most 20 findings, each line cut at 240 characters, so the one comment
 stays under GitHub's size limit.
 
 ### Fixing a finding you disagree with
@@ -112,18 +112,41 @@ would deadlock).
 ### A repo's own gates (eslint, tsc, knip, mypy, coverage)
 
 Commands that only fit one repo (its eslint config and globs, its tsc project, its test suite)
-live in a bash script in that repo, named by `extra-gates:`. It runs last, in the same job, with:
+live in a bash script in that repo, named by `extra-gates:`. It runs last, in the same job,
+under `bash --noprofile --norc -uo pipefail`, with:
 
 - `$RATCHET`: the shared ratchet with `--repo`, `--pr`, `--base` and `--strip-prefix /repo/` set,
-  so `$RATCHET --tool eslint --input "$QUALITY_DIR/eslint.json"` adds a section to the sticky comment;
+  so `"$RATCHET" --tool eslint --input "$QUALITY_DIR/eslint.json"` adds a section to the sticky comment;
+- `$RATCHET_PY` and `PYTHONPATH`: the ratchet file and its folder, for a repo's own adapter
+  script that does `import ratchet` (for a tool format the ratchet does not read);
 - `$DR` / `$DRT`: the `docker run` flags every tool shares (repo read-only at `/repo`, the
   runner's user; `$DRT` adds a writable `/tmp`);
 - `$PYTHON_IMAGE`, `$NODE_IMAGE`, `$QUALITY_DIR` (a scratch directory).
 
 The ratchet reads `eslint` (JSON), `knip` (JSON), `mypy` and `tsc` (text) besides the seven
 shared tools, and `--tool coverage --input <pytest-cov json> --coverage-label api
---coverage-suite "api tests"` writes a report-only coverage section. The script runs every
-tool even when one fails, and exits with the worst result (2 over 1 over 0).
+--coverage-suite "api tests"` writes a report-only coverage section.
+
+Rules for the script:
+
+- Run every tool even when one fails. The step fails with the worst exit code of the script
+  and of every `$RATCHET` call it made, so a crash early in the script cannot end green.
+- mypy and tsc print nothing when clean, so the ratchet reads empty output as a pass. Check
+  their exit codes (mypy 0 or 1, tsc 0 or 2) and, on any other, write the reason into the
+  output file instead, as the shared steps do; the ratchet then reports the section as FAIL.
+
+### A separate job that needs the ratchet
+
+A job outside the shared one (for example coverage on a heavier runner) fetches the ratchet at
+the same SHA as the caller's `uses:` pin, from this public repo, with no token:
+
+```
+curl -fsSL -o "$RUNNER_TEMP/ratchet.py" \
+  https://raw.githubusercontent.com/olemiss-fm/.github/<the same sha>/scripts/quality/ratchet.py
+```
+
+Keep the two SHAs in the caller identical; the monthly quality-metrics run reports a caller
+whose pins disagree.
 
 ## Running it by hand
 
@@ -136,8 +159,9 @@ python3 path/to/ratchet.py --tool ruff --input ruff.json --strip-prefix /repo/ -
 
 Without `--repo` and `--pr` it only prints; nothing is posted. `--diff-file` replaces the
 `git diff`. Interface: `--tool NAME --input FILE [--mode report|enforce] [--base REF]
-[--diff-file F] [--strip-prefix P] [--repo OWNER/NAME --pr N]`; the tool name is also the
-output format. Exit 0 ok, 1 enforce failed, 2 unreadable output. `GITHUB_STEP_SUMMARY` is also
+[--diff-file F] [--strip-prefix P] [--repo OWNER/NAME --pr N] [--coverage-label L
+--coverage-suite S]`; the tool name is also the output format (`coverage` reads a pytest-cov
+JSON report). Exit 0 ok, 1 enforce failed, 2 unreadable output. `GITHUB_STEP_SUMMARY` is also
 written when set. Tests: `scripts/quality/tests` (pytest; fixtures are real tool output),
 run on every PR here by `.github/workflows/gates.yml`.
 
@@ -147,14 +171,16 @@ run on every PR here by `.github/workflows/gates.yml`.
    plus the ratchet tests.
 2. Merge, then move each caller's `@<sha>` to the merge commit, one PR per repo. A repo on an
    older SHA keeps working on the older gates until it moves; the monthly quality-metrics run
-   reports which repos are behind.
+   (ops `automation/quality-metrics`) reports which repos are behind.
 
 ## Trust and limits
 
-- A caller runs on `pull_request` in its own repo. The shared workflow and ratchet come from
-  this repo at the pinned SHA, so a PR in a calling repo cannot change the gates it is judged
-  by. Its `extra-gates` script and tool config are its own, and run on the fm-ci host, the same
-  exposure every fm-ci workflow has. The calling repos are private and the pool takes no fork PRs.
+- A caller runs on `pull_request` in its own repo, and a PR there runs the PR's own caller. So
+  a PR can change its own `tools`, `mode` or pin, as it could edit a vendored workflow before;
+  the review sees that change in the diff. What it cannot do is change the shared steps or the
+  ratchet at a given SHA. Its `extra-gates` script and tool config are its own, and run on the
+  fm-ci host, the same exposure every fm-ci workflow has. The calling repos are private and the
+  pool takes no fork PRs.
 - This repo is public, so the ratchet is fetched from `raw.githubusercontent.com` at the pinned
   SHA with no token.
 - The tool containers are pinned by digest. `pip` (pytest, vulture) and `npx` (jscpd) packages

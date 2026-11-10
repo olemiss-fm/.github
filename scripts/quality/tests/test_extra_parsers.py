@@ -129,3 +129,19 @@ def test_cli_coverage_bad_report_is_a_failed_section(tmp_path, monkeypatch, caps
 @pytest.mark.parametrize("tool", ["mypy", "tsc"])
 def test_cli_clean_run_prints_nothing_and_passes(tmp_path, monkeypatch, tool):
     assert _run(tmp_path, monkeypatch, tool, "", "--mode", "enforce") == 0
+
+
+def test_twelve_full_sections_fit_one_comment():
+    """The shared workflow can post 7 gates plus eslint, knip, mypy, tsc and coverage in one sticky comment."""
+    long_msg = "x" * 400
+    body = None
+    for tool in [*ratchet.PARSERS, ratchet.COVERAGE]:
+        fs = [ratchet.Finding(f"a/very/long/path/to/{tool}/file_{i}.py", i, "RULE123", long_msg) for i in range(60)]
+        body = ratchet.merge_comment(body, tool, ratchet.render_section(tool, fs, 10**6, "enforce"))
+    assert len(ratchet.PARSERS) + 1 == 12
+    assert len(body) < 65536
+
+
+def test_unparseable_json_keeps_the_workflows_reason():
+    with pytest.raises(ToolOutputError, match="shellcheck did not run cleanly"):
+        ratchet.parse_shellcheck("shellcheck did not run cleanly (exit 2)\n")

@@ -36,7 +36,7 @@ on:
         type: string
         default: '["self-hosted", "fm-ci"]'
       python-image:
-        description: Python image for vulture, the ratchet and the extra gates (digest-pinned).
+        description: Python image for vulture (digest-pinned); also given to the extra gates. The ratchet runs on the host's python3.
         type: string
         default: python@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 # 3.13-slim
       jscpd-paths:
@@ -52,14 +52,16 @@ on:
         type: string
         default: '**/node_modules/**,**/secrets/**,**/.git/**'
       sqlfluff-paths:
-        description: Space-separated git pathspecs of the SQL files sqlfluff lints.
+        description: Whitespace-separated git pathspecs of the SQL files sqlfluff lints.
         type: string
         default: '*/migrations/*.sql'
       extra-gates:
         description: >-
           Path, in the calling repo, of a bash script for that repo's own gates (eslint, tsc, knip,
-          mypy, coverage). It runs last, in the same job, with RATCHET, DR, DRT, PYTHON_IMAGE,
-          NODE_IMAGE and QUALITY_DIR set; it calls `$RATCHET --tool <name> --input <file>` per tool.
+          mypy, coverage). It runs last, in the same job, under bash -uo pipefail, with RATCHET,
+          RATCHET_PY, PYTHONPATH, DR, DRT, PYTHON_IMAGE, NODE_IMAGE and QUALITY_DIR set; see
+          docs/quality-gates.md. The step fails with the worst exit code of the script and of every
+          $RATCHET call it made.
         type: string
         default: ''
 
@@ -91,21 +93,32 @@ jobs:
         shell: bash --noprofile --norc -uo pipefail {0}
     env:
       GH_TOKEN: ${{ github.token }}
-      TOOLS: ' ${{ inputs.tools }} '
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
 
+      # Every later step keys off this step's `tools` output, so none runs when it fails.
       - name: Prepare
+        id: prepare
         env:
           MODE: ${{ inputs.mode }}
+          TOOLS_IN: ${{ inputs.tools }}
+          PR: ${{ github.event.pull_request.number }}
           # this workflow's own repo and commit, so the ratchet is the one this file was pinned with
           GATES_REPO: ${{ job.workflow_repository }}
           GATES_SHA: ${{ job.workflow_sha }}
         run: |
           case "$MODE" in report|enforce) ;; *) echo "mode must be report or enforce, not '$MODE'"; exit 2 ;; esac
+          read -ra want -d '' <<< "$TOOLS_IN"
+          [ "${#want[@]}" -gt 0 ] || { echo "tools is empty: name at least one gate"; exit 2; }
+          for t in "${want[@]}"; do
+            case " ruff vulture jscpd shellcheck hadolint actionlint sqlfluff " in
+              *" $t "*) ;;
+              *) echo "unknown tool '$t' in tools (space-separated: ruff vulture jscpd shellcheck hadolint actionlint sqlfluff)"; exit 2 ;;
+            esac
+          done
           q="$RUNNER_TEMP/quality"
           mkdir -p "$q"
           if [ "$GATES_REPO" = "$GITHUB_REPOSITORY" ]; then
@@ -116,26 +129,36 @@ jobs:
             curl -fsSL --retry 3 -o "$q/ratchet.py" \
               "https://raw.githubusercontent.com/$GATES_REPO/$GATES_SHA/scripts/quality/ratchet.py" || exit 2
           fi
+          # $RATCHET: the ratchet with this PR's flags; it also records each exit code for the extra gates step
+          cat > "$q/ratchet" <<EOF
+          #!/bin/bash
+          python3 "$q/ratchet.py" --repo "$GITHUB_REPOSITORY" --pr "$PR" --base "origin/$GITHUB_BASE_REF" --strip-prefix /repo/ "\$@"
+          rc=\$?
+          echo "\$rc" >> "$q/rc"
+          exit "\$rc"
+          EOF
+          chmod +x "$q/ratchet" || exit 2
           {
             echo "QUALITY_DIR=$q"
+            echo "RATCHET=$q/ratchet"
+            echo "RATCHET_PY=$q/ratchet.py"
             # flags every tool container shares: read-only repo at /repo, run as the runner user
             echo "DR=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
             # plus a writable /tmp, for tools that install or cache something
             echo "DRT=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo --tmpfs /tmp:exec,mode=1777 -e HOME=/tmp"
-            echo "RATCHET=python3 $q/ratchet.py --repo $GITHUB_REPOSITORY --pr ${{ github.event.pull_request.number }} --base origin/$GITHUB_BASE_REF --strip-prefix /repo/"
           } >> "$GITHUB_ENV"
+          echo "tools= ${want[*]} " >> "$GITHUB_OUTPUT"
 
       - name: ruff
-        if: ${{ !cancelled() && contains(env.TOOLS, ' ruff ') }}
+        if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' ruff ') }}
         run: |
           out="$QUALITY_DIR/ruff.json"
           # shellcheck disable=SC2086
           docker run $DR "$RUFF_IMAGE" check --no-cache --output-format json . > "$out" || true
-          # shellcheck disable=SC2086
-          $RATCHET --tool ruff --input "$out"
+          "$RATCHET" --tool ruff --input "$out"
 
       - name: vulture
-        if: ${{ !cancelled() && contains(env.TOOLS, ' vulture ') }}
+        if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' vulture ') }}
         run: |
           out="$QUALITY_DIR/vulture.txt"
           # shellcheck disable=SC2086
@@ -149,11 +172,10 @@ jobs:
           # failed) must not read as a clean run, since vulture prints nothing when clean: the
           # reason replaces the output, the ratchet cannot parse it, and the step fails with it.
           case "$rc" in 0|1|3) ;; *) echo "vulture did not run cleanly (exit $rc)" > "$out" ;; esac
-          # shellcheck disable=SC2086
-          $RATCHET --tool vulture --input "$out"
+          "$RATCHET" --tool vulture --input "$out"
 
       - name: jscpd
-        if: ${{ !cancelled() && contains(env.TOOLS, ' jscpd ') }}
+        if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' jscpd ') }}
         env:
           JSCPD_PATHS: ${{ inputs.jscpd-paths }}
           JSCPD_FORMATS: ${{ inputs.jscpd-formats }}
@@ -169,45 +191,49 @@ jobs:
             # jscpd writes no report when it finds no clones
             if [ -f /tmp/j/jscpd-report.json ]; then cat /tmp/j/jscpd-report.json; else echo "{\"duplicates\":[]}"; fi
           ' > "$out" || true
-          # shellcheck disable=SC2086
-          $RATCHET --tool jscpd --input "$out"
+          "$RATCHET" --tool jscpd --input "$out"
 
+      # The file-list gates below never skip the ratchet: when the list or the tool fails, the
+      # reason replaces the output, so the comment section turns to FAIL instead of keeping an old ok.
       - name: shellcheck
-        if: ${{ !cancelled() && contains(env.TOOLS, ' shellcheck ') }}
+        if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' shellcheck ') }}
         run: |
           out="$QUALITY_DIR/shellcheck.json"
           list="$QUALITY_DIR/shellcheck.list"
-          git ls-files -z '*.sh' > "$list" || { echo "git ls-files failed"; exit 2; }
-          mapfile -d '' files < "$list"
-          if [ "${#files[@]}" -gt 0 ]; then
-            # shellcheck disable=SC2086
-            docker run $DR "$SHELLCHECK_IMAGE" -f json -- "${files[@]}" > "$out"
-            rc=$?
-            # 0 clean, 1 findings. Anything else (2 a file it could not read, which still prints valid
-            # JSON without it, or docker failed) must not read as a clean run.
-            case "$rc" in 0|1) ;; *) echo "shellcheck did not run cleanly (exit $rc)"; exit 2 ;; esac
+          if ! git ls-files -z '*.sh' > "$list"; then
+            echo "git ls-files failed" > "$out"
           else
-            echo '[]' > "$out"
+            mapfile -d '' files < "$list"
+            if [ "${#files[@]}" -gt 0 ]; then
+              # shellcheck disable=SC2086
+              docker run $DR "$SHELLCHECK_IMAGE" -f json -- "${files[@]}" > "$out"
+              rc=$?
+              # 0 clean, 1 findings. Anything else (2 a file it could not read, which still prints valid
+              # JSON without it, or docker failed) must not read as a clean run.
+              case "$rc" in 0|1) ;; *) echo "shellcheck did not run cleanly (exit $rc)" > "$out" ;; esac
+            else
+              echo '[]' > "$out"
+            fi
           fi
-          # shellcheck disable=SC2086
-          $RATCHET --tool shellcheck --input "$out"
+          "$RATCHET" --tool shellcheck --input "$out"
 
       - name: hadolint
-        if: ${{ !cancelled() && contains(env.TOOLS, ' hadolint ') }}
+        if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' hadolint ') }}
         run: |
           out="$QUALITY_DIR/hadolint.json"
-          git ls-files -z '*Dockerfile*' > "$QUALITY_DIR/hadolint.list"
-          if [ -s "$QUALITY_DIR/hadolint.list" ]; then
+          list="$QUALITY_DIR/hadolint.list"
+          if ! git ls-files -z '*Dockerfile*' > "$list"; then
+            echo "git ls-files failed" > "$out"
+          elif [ -s "$list" ]; then
             # shellcheck disable=SC2086
-            xargs -0 docker run $DR "$HADOLINT_IMAGE" hadolint -f json < "$QUALITY_DIR/hadolint.list" > "$out" || true
+            xargs -0 docker run $DR "$HADOLINT_IMAGE" hadolint -f json < "$list" > "$out" || true
           else
             echo '[]' > "$out"
           fi
-          # shellcheck disable=SC2086
-          $RATCHET --tool hadolint --input "$out"
+          "$RATCHET" --tool hadolint --input "$out"
 
       - name: actionlint
-        if: ${{ !cancelled() && contains(env.TOOLS, ' actionlint ') }}
+        if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' actionlint ') }}
         run: |
           out="$QUALITY_DIR/actionlint.json"
           cfg=()
@@ -217,29 +243,38 @@ jobs:
           docker run $DR "$ACTIONLINT_IMAGE" "${cfg[@]}" -format '{{json .}}' > "$out"
           rc=$?
           # 0 clean, 1 findings; anything else is a bad config or a crash
-          case "$rc" in 0|1) ;; *) echo "actionlint did not run cleanly (exit $rc)"; exit 2 ;; esac
-          # shellcheck disable=SC2086
-          $RATCHET --tool actionlint --input "$out"
+          case "$rc" in 0|1) ;; *) echo "actionlint did not run cleanly (exit $rc)" > "$out" ;; esac
+          "$RATCHET" --tool actionlint --input "$out"
 
       - name: sqlfluff
-        if: ${{ !cancelled() && contains(env.TOOLS, ' sqlfluff ') }}
+        if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' sqlfluff ') }}
         env:
           SQLFLUFF_PATHS: ${{ inputs.sqlfluff-paths }}
         run: |
           out="$QUALITY_DIR/sqlfluff.json"
-          read -ra specs <<< "$SQLFLUFF_PATHS"
-          git ls-files -z -- "${specs[@]}" > "$QUALITY_DIR/sqlfluff.list"
-          if [ -s "$QUALITY_DIR/sqlfluff.list" ]; then
+          list="$QUALITY_DIR/sqlfluff.list"
+          read -ra specs -d '' <<< "$SQLFLUFF_PATHS"
+          if [ "${#specs[@]}" -eq 0 ]; then
+            echo "sqlfluff-paths is empty: name the SQL files to lint" > "$out"
+          elif ! git ls-files -z -- "${specs[@]}" > "$list"; then
+            echo "git ls-files failed" > "$out"
+          elif [ -s "$list" ]; then
             # shellcheck disable=SC2086
-            xargs -0 docker run $DR "$SQLFLUFF_IMAGE" lint --dialect postgres --format json < "$QUALITY_DIR/sqlfluff.list" > "$out" || true
+            xargs -0 docker run $DR "$SQLFLUFF_IMAGE" lint --dialect postgres --format json < "$list" > "$out" || true
           else
             echo '[]' > "$out"
           fi
-          # shellcheck disable=SC2086
-          $RATCHET --tool sqlfluff --input "$out"
+          "$RATCHET" --tool sqlfluff --input "$out"
 
       - name: extra gates (${{ inputs.extra-gates }})
-        if: ${{ !cancelled() && inputs.extra-gates != '' }}
+        if: ${{ !cancelled() && steps.prepare.outputs.tools != '' && inputs.extra-gates != '' }}
         env:
           EXTRA_GATES: ${{ inputs.extra-gates }}
-        run: bash --noprofile --norc -uo pipefail "$EXTRA_GATES"
+        run: |
+          rm -f "$QUALITY_DIR/rc"
+          # PYTHONPATH lets a repo's own adapter script `import ratchet`
+          PYTHONPATH="$QUALITY_DIR" bash --noprofile --norc -uo pipefail "$EXTRA_GATES"
+          rc=$?
+          # the worst of the script's own exit code and every $RATCHET call it made
+          worst=$( { echo "$rc"; cat "$QUALITY_DIR/rc" 2>/dev/null; } | sort -n | tail -1)
+          exit "$worst"
