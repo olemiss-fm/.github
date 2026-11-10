@@ -236,3 +236,34 @@ def test_eslint_fatal_message_with_null_line():
     fatal = {"ruleId": None, "fatal": True, "message": "Parsing error", "line": None, "endLine": None}
     text = json.dumps([{"filePath": "/repo/a.js", "messages": [fatal]}])
     assert ratchet.parse_eslint(text) == [Finding("/repo/a.js", 1, "eslint", "Parsing error", 0)]
+
+
+# ---- round 2: real output shapes ----
+def test_mypy_clean_default_summary_is_clean():
+    """mypy 1.18.2 without --no-error-summary prints a note (if any) and then this line when clean."""
+    text = (
+        "api/app/x.py:2: note: By default the bodies of untyped functions are not checked  [annotation-unchecked]\n"
+        "Success: no issues found in 12 source files\n"
+    )
+    assert ratchet.parse_mypy(text) == []
+    assert ratchet.parse_mypy("Success: no issues found in 1 source file\n") == []
+
+
+def test_mypy_error_summary_with_no_readable_error_is_not_a_pass():
+    with pytest.raises(ToolOutputError):
+        ratchet.parse_mypy("Found 3 errors in 2 files (checked 12 source files)\n")
+
+
+def test_mypy_errors_with_summary():
+    text = "a.py:1: error: Bad  [misc]\nFound 1 error in 1 file (checked 3 source files)\n"
+    assert ratchet.parse_mypy(text) == [Finding("a.py", 1, "misc", "Bad")]
+
+
+def test_knip5_owners_and_member_dicts():
+    """knip 5.43.6 with a CODEOWNERS file: owners is a list of strings, enum and class members are dicts."""
+    text = json.dumps({"files": [], "issues": [{
+        "file": "src/a.ts", "owners": ["@olemiss-fm/eng"], "dependencies": [], "exports": [],
+        "enumMembers": {"Color": [{"name": "Blue", "line": 3, "col": 3, "pos": 40}]},
+        "classMembers": {},
+    }]})
+    assert ratchet.parse_knip(text) == [Finding("src/a.ts", 3, "knip:enumMembers", "unused enumMembers: Blue")]

@@ -55,6 +55,18 @@ on:
         description: Whitespace-separated git pathspecs of the SQL files sqlfluff lints.
         type: string
         default: '*/migrations/*.sql'
+      sqlfluff-changed-only:
+        description: Lint only the files in sqlfluff-paths that the PR adds or changes (for a repo with hundreds of migrations).
+        type: boolean
+        default: false
+      vulture-exclude:
+        description: vulture --exclude globs, comma-separated; empty passes no --exclude.
+        type: string
+        default: 'secrets/*,*/secrets/*'
+      timeout-minutes:
+        description: Job timeout.
+        type: number
+        default: 25
       extra-gates:
         description: >-
           Path, in the calling repo, of a bash script for that repo's own gates (eslint, tsc, knip,
@@ -79,7 +91,7 @@ jobs:
   gates:
     name: changed-lines ratchet
     runs-on: ${{ fromJSON(inputs.runs-on) }}
-    timeout-minutes: 25
+    timeout-minutes: ${{ inputs.timeout-minutes }}
     # the caller grants these and sets no concurrency of its own (the same group there would deadlock)
     permissions:
       contents: read
@@ -161,12 +173,14 @@ jobs:
 
       - name: vulture
         if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' vulture ') }}
+        env:
+          VULTURE_EXCLUDE: ${{ inputs.vulture-exclude }}
         run: |
           out="$QUALITY_DIR/vulture.txt"
           # shellcheck disable=SC2086
-          docker run $DRT "$PYTHON_IMAGE" sh -c '
+          docker run $DRT -e VULTURE_EXCLUDE "$PYTHON_IMAGE" sh -c '
             pip install -q --user --no-warn-script-location vulture==2.14 >&2 || exit 4
-            python -m vulture . --min-confidence 80 --exclude "secrets/*,*/secrets/*" 2>&1
+            python -m vulture . --min-confidence 80 ${VULTURE_EXCLUDE:+--exclude "$VULTURE_EXCLUDE"} 2>&1
           ' > "$out"
           rc=$?
           # 0 clean, 3 dead code found, 1 a file it could not read or parse (it says so on stderr,
@@ -252,14 +266,22 @@ jobs:
         if: ${{ !cancelled() && contains(steps.prepare.outputs.tools, ' sqlfluff ') }}
         env:
           SQLFLUFF_PATHS: ${{ inputs.sqlfluff-paths }}
+          CHANGED_ONLY: ${{ inputs.sqlfluff-changed-only }}
         run: |
           out="$QUALITY_DIR/sqlfluff.json"
           list="$QUALITY_DIR/sqlfluff.list"
+          if [ "$CHANGED_ONLY" = true ]; then
+            # the ratchet drops findings in files the PR does not touch, so this changes only the
+            # "Whole repo" count, and keeps a repo with hundreds of migrations inside the timeout
+            list_sql() { git diff -z --name-only --diff-filter=AMR "origin/$GITHUB_BASE_REF...HEAD" -- "$@"; }
+          else
+            list_sql() { git ls-files -z -- "$@"; }
+          fi
           read -ra specs -d '' <<< "$SQLFLUFF_PATHS"
           if [ "${#specs[@]}" -eq 0 ]; then
             echo "sqlfluff-paths is empty: name the SQL files to lint" > "$out"
-          elif ! git ls-files -z -- "${specs[@]}" > "$list"; then
-            echo "git ls-files failed" > "$out"
+          elif ! list_sql "${specs[@]}" > "$list"; then
+            echo "listing the SQL files (git) failed" > "$out"
           elif [ -s "$list" ]; then
             # shellcheck disable=SC2086
             xargs -0 docker run $DR "$SQLFLUFF_IMAGE" lint --dialect postgres --format json < "$list" > "$out" || true

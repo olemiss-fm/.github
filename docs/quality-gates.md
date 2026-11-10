@@ -107,6 +107,9 @@ would deadlock).
 | `jscpd-formats` | `python,bash,yaml,sql` | jscpd `--format` |
 | `jscpd-ignore` | `**/node_modules/**,**/secrets/**,**/.git/**` | jscpd `--ignore`; empty passes none |
 | `sqlfluff-paths` | `*/migrations/*.sql` | git pathspecs sqlfluff lints |
+| `sqlfluff-changed-only` | `false` | `true` lints only the files in `sqlfluff-paths` the PR adds or changes (a repo with hundreds of migrations); only the "Whole repo" count differs |
+| `vulture-exclude` | `secrets/*,*/secrets/*` | vulture `--exclude` globs, comma-separated; empty passes none |
+| `timeout-minutes` | `25` | job timeout |
 | `extra-gates` | none | a bash script in the repo for its own gates, see below |
 
 ### A repo's own gates (eslint, tsc, knip, mypy, coverage)
@@ -140,15 +143,17 @@ Rules for the script:
 
 - Run every tool even when one fails. The step fails with the worst exit code of the script
   and of every `$RATCHET` call it made, so a crash early in the script cannot end green.
-- mypy and tsc print nothing when clean, so the ratchet reads empty output as a pass. Check
-  their exit codes (mypy 0 or 1, tsc 0 or 2) and, on any other, write the reason into the
-  output file instead, as the shared steps do; the ratchet then reports the section as FAIL.
+- A clean mypy prints nothing (with `--no-error-summary`) or only notes and its
+  `Success: no issues found` line, and a clean tsc prints nothing, so the ratchet reads that
+  output as a pass. Check their exit codes (mypy 0 or 1, tsc 0, 1 or 2) and, on any other,
+  write the reason into the output file instead, as the shared steps do; the ratchet then
+  reports the section as FAIL.
 
 ### Where each repo's own add-on goes
 
 | Repo | Add-on it kept beside the vendored ratchet | In the shared setup |
 |---|---|---|
-| FMAPI | `ratchet_ext.py`: eslint, tsc, mypy, knip, coverage | shared parsers; knip with `--add-prefix sync_ui/`, coverage as `--tool uncovered`; the commands in its `extra-gates` script |
+| FMAPI | `ratchet_ext.py`: eslint, tsc, mypy, knip, coverage | shared parsers; mypy, eslint, tsc and knip (`--add-prefix sync_ui/`) in its `extra-gates` script; the mock-suite coverage as `--tool uncovered` in its own job, which fetches the ratchet; `sqlfluff-changed-only: true`, its own `vulture-exclude` and a longer `timeout-minutes` |
 | fm-comp-time | `extra_gates.py`: mypy, tsc, eslint, knip, coverage | shared parsers; `--add-prefix web/` and `api/`; coverage as `--tool coverage` plus `--tool uncovered` in its separate coverage job |
 | utility_billing | `changed_lines.py`: mypy and `eslint -f unix` text, job summary only | shared `mypy` parser; eslint switches to `-f json` for the shared `eslint` parser |
 | landing_page, fm-utilities-next | `extra_tools.py`: eslint, knip, mypy, tsc, coverage | the same parsers, now in the shared ratchet |

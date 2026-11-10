@@ -190,20 +190,22 @@ def parse_eslint(text):
 _MYPY = re.compile(
     r"^(?P<path>[^:\n]+):(?P<line>\d+)(?::\d+)?: (?:error|warning): (?P<msg>.*?)(?:  \[(?P<code>[\w-]+)\])?$"
 )
-# a mypy note on its own (exit 0) is a clean run, e.g. [annotation-unchecked] in an untyped function
-_MYPY_NOTE = re.compile(r"^[^:\n]+:\d+(?::\d+)?: note: ")
+# Lines that are not findings: a mypy note (on its own, exit 0, e.g. [annotation-unchecked] in an
+# untyped function) and the summary mypy prints on a clean run unless --no-error-summary is set.
+# "Found N errors" is not here: with no error read beside it, the output was not understood.
+_NOT_FINDING = re.compile(r"^(?:[^:\n]+:\d+(?::\d+)?: note: |Success: no issues found in \d+ source files?$)")
 _TSC = re.compile(r"^(?P<path>.+?)\((?P<line>\d+),\d+\): error (?P<code>TS\d+): (?P<msg>.*)$")
 _TSC_GLOBAL = re.compile(r"^error TS\d+.*$", re.M)  # a config or global error: tsc checked nothing
 
 
 def _parse_lines(text, pattern, name):
-    """mypy and tsc print one finding per line; output with no finding and a line that is not a note is an error."""
+    """mypy and tsc print one finding per line; no finding and a line that is not a note or summary is an error."""
     out, unread = [], False
     for raw in text.splitlines():
         m = pattern.match(raw)
         if m:
             out.append(Finding(m["path"], int(m["line"]), m["code"] or name, m["msg"]))
-        elif raw.strip() and not _MYPY_NOTE.match(raw):
+        elif raw.strip() and not _NOT_FINDING.match(raw):
             unread = True
     if unread and not out:
         raise ToolOutputError(f"no {name} findings could be read from non-empty output")
@@ -229,7 +231,10 @@ def parse_knip(text):
     out = [Finding(p, 1, "knip:files", "unused file") for p in data.get("files", [])]
     for issue in data.get("issues", []):
         for kind, items in issue.items():
-            if kind == "file" or not isinstance(items, list):
+            if isinstance(items, dict):  # knip 5: enumMembers and classMembers grouped by enum or class
+                items = [it for group in items.values() for it in group]
+            # "owners" (knip 5, from CODEOWNERS) lists who owns the file, not an issue
+            if kind in ("file", "owners") or not isinstance(items, list):
                 continue
             for it in items:
                 group = it if isinstance(it, list) else [it]  # duplicates: one group of names per export
