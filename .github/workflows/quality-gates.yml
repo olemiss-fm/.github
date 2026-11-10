@@ -272,7 +272,8 @@ jobs:
           list="$QUALITY_DIR/sqlfluff.list"
           if [ "$CHANGED_ONLY" = true ]; then
             # the ratchet drops findings in files the PR does not touch, so this changes only the
-            # "Whole repo" count, and keeps a repo with hundreds of migrations inside the timeout
+            # existing count (its --scope-label below says so) and keeps a repo with hundreds of
+            # migrations inside the timeout
             list_sql() { git diff -z --name-only --diff-filter=AMR "origin/$GITHUB_BASE_REF...HEAD" -- "$@"; }
           else
             list_sql() { git ls-files -z -- "$@"; }
