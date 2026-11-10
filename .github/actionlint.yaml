@@ -1,5 +1,0 @@
-# Labels of the self-hosted runner pools, so actionlint does not flag them as unknown.
-self-hosted-runner:
-  labels:
-    - fm-ci
-    - fm-ci-heavy

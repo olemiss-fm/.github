@@ -4,7 +4,8 @@ name: Quality gates
 # ratchet (scripts/quality/ratchet.py) keeps only findings on lines this PR adds or edits,
 # then updates ONE sticky PR comment. See docs/quality-gates.md for how to read a result.
 # QUALITY_MODE is the single switch: `report` comments and passes, `enforce` fails the check
-# when a finding sits on a changed line. Runs on the fm-ci pool (0 GitHub minutes).
+# when a finding sits on a changed line. Runs on a GitHub-hosted runner: this repo is public,
+# so it is free there, and the org runner group (fm-ci) does not serve public repos.
 
 on:
   pull_request:
@@ -25,7 +26,7 @@ env:
 jobs:
   gates:
     name: changed-lines ratchet
-    runs-on: [self-hosted, fm-ci]
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
       run:
@@ -67,7 +68,7 @@ jobs:
           set -uo pipefail
           out="$RUNNER_TEMP/quality/actionlint.json"
           # shellcheck disable=SC2086
-          docker run $DR "$ACTIONLINT_IMAGE" -config-file .github/actionlint.yaml -format '{{json .}}' \
+          docker run $DR "$ACTIONLINT_IMAGE" -format '{{json .}}' \
             .github/workflows/*.yml > "$out" || true
           # shellcheck disable=SC2086
           $RATCHET --tool actionlint --input "$out"
