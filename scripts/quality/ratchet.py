@@ -400,7 +400,7 @@ def _args(argv):
     ap.add_argument("--base", default="origin/main")
     ap.add_argument("--diff-file", help="use this unified-0 diff instead of running git diff")
     ap.add_argument("--strip-prefix", action="append", default=[], help="path prefix to drop (e.g. /repo/)")
-    ap.add_argument("--add-prefix", default="", help="path prefix to add after stripping, when the tool ran in a subfolder")
+    ap.add_argument("--add-prefix", default="", help="path prefix to add after stripping (the tool ran in a subfolder)")
     ap.add_argument("--repo", help="owner/name; with --pr, post the sticky comment")
     ap.add_argument("--pr", type=int)
     ap.add_argument("--coverage-label", default="backend", help="coverage: what the lines are, e.g. backend")

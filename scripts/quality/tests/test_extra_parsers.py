@@ -167,7 +167,9 @@ def test_cli_uncovered_is_report_only_and_takes_the_subfolder(tmp_path, monkeypa
     """fm-comp-time runs its tests in api/, so coverage paths need api/ put back to meet the diff."""
     monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     (tmp_path / "in").write_text(COVERAGE_JSON)
-    (tmp_path / "d.diff").write_text("diff --git a/api/app/x.py b/api/app/x.py\n+++ b/api/app/x.py\n@@ -0,0 +4,1 @@\n+x\n")
+    (tmp_path / "d.diff").write_text(
+        "diff --git a/api/app/x.py b/api/app/x.py\n+++ b/api/app/x.py\n@@ -0,0 +4,1 @@\n+x\n"
+    )
     rc = ratchet.main(["--tool", "uncovered", "--input", str(tmp_path / "in"), "--diff-file", str(tmp_path / "d.diff"),
                        "--mode", "enforce", "--add-prefix", "api/", "--coverage-suite", "api tests"])
     out = capsys.readouterr().out
@@ -191,8 +193,8 @@ def test_add_prefix_follows_strip():
 def test_knip_per_issue_files_do_not_crash():
     """knip 5.6x lists an unused file under its own issue (FMAPI sync_ui fixture)."""
     text = json.dumps({"issues": [
-        {"file": "src/jobHistory.ts", "exports": [{"name": "strip", "line": 23}], "types": [{"name": "Freq", "line": 12}],
-         "files": []},
+        {"file": "src/jobHistory.ts", "exports": [{"name": "strip", "line": 23}],
+         "types": [{"name": "Freq", "line": 12}], "files": []},
         {"file": "src/orphan.ts", "files": [{"name": "src/orphan.ts"}]},
     ]})
     assert [(f.path, f.line, f.rule) for f in ratchet.parse_knip(text)] == [
@@ -216,17 +218,21 @@ def test_tsc_skips_continuation_lines():
         "  Types of property 'title' are incompatible.\n"
         "sync_ui/src/App.tsx(12,7): error TS6133: 'envLabel' is declared but its value is never read.\n"
     )
-    assert [(f.path, f.line) for f in ratchet.parse_tsc(text)] == [("sync_ui/src/A.tsx", 769), ("sync_ui/src/App.tsx", 12)]
+    got = [(f.path, f.line) for f in ratchet.parse_tsc(text)]
+    assert got == [("sync_ui/src/A.tsx", 769), ("sync_ui/src/App.tsx", 12)]
 
 
 def test_tsc_global_error_is_not_a_pass():
     """A broken tsconfig checks nothing, even when another line looks like a finding."""
-    text = "error TS5058: The specified path does not exist: 'x.json'.\nweb/a.ts(1,1): error TS2304: Cannot find name 'y'.\n"
+    text = (
+        "error TS5058: The specified path does not exist: 'x.json'.\n"
+        "web/a.ts(1,1): error TS2304: Cannot find name 'y'.\n"
+    )
     with pytest.raises(ToolOutputError, match="TS5058"):
         ratchet.parse_tsc(text)
 
 
 def test_eslint_fatal_message_with_null_line():
-    text = json.dumps([{"filePath": "/repo/a.js", "messages": [{"ruleId": None, "fatal": True, "message": "Parsing error",
-                                                                "line": None, "endLine": None}]}])
+    fatal = {"ruleId": None, "fatal": True, "message": "Parsing error", "line": None, "endLine": None}
+    text = json.dumps([{"filePath": "/repo/a.js", "messages": [fatal]}])
     assert ratchet.parse_eslint(text) == [Finding("/repo/a.js", 1, "eslint", "Parsing error", 0)]
