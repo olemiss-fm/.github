@@ -1,5 +1,6 @@
 """Behaviour lock for the parsers repos once kept beside ratchet.py (landing_page, fm-utilities-next, FMAPI,
 fm-comp-time, utility_billing)."""
+
 import json
 import os
 import sys
@@ -10,17 +11,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ratchet  # noqa: E402
 from ratchet import Finding, ToolOutputError  # noqa: E402
 
-ESLINT = json.dumps([
-    {"filePath": "/repo/web/a.js", "messages": [
-        {"ruleId": "sonarjs/cognitive-complexity", "message": "Too complex", "line": 10, "endLine": 40},
-        {"ruleId": None, "message": "Parsing error", "line": 3},
-    ]},
-    {"filePath": "/repo/web/b.js", "messages": []},
-])
-KNIP = json.dumps({
-    "files": ["web/dead.js"],
-    "issues": [{"file": "tests/e2e/package.json", "dependencies": [{"name": "left-pad"}], "exports": []}],
-})
+ESLINT = json.dumps(
+    [
+        {
+            "filePath": "/repo/web/a.js",
+            "messages": [
+                {"ruleId": "sonarjs/cognitive-complexity", "message": "Too complex", "line": 10, "endLine": 40},
+                {"ruleId": None, "message": "Parsing error", "line": 3},
+            ],
+        },
+        {"filePath": "/repo/web/b.js", "messages": []},
+    ]
+)
+KNIP = json.dumps(
+    {
+        "files": ["web/dead.js"],
+        "issues": [{"file": "tests/e2e/package.json", "dependencies": [{"name": "left-pad"}], "exports": []}],
+    }
+)
 
 
 def test_eslint():
@@ -78,9 +86,19 @@ def test_knip_repo_relative_path_reaches_changed_line():
 
 def test_knip_duplicates_are_groups():
     """knip reports each duplicate export as a list of the names it goes by (knip 5.43.6, seen on devdock)."""
-    text = json.dumps({"files": [], "issues": [{"file": "web/src/api.js", "duplicates": [
-        [{"name": "getJSON", "line": 1, "col": 1}, {"name": "default", "line": 9, "col": 15}],
-    ]}]})
+    text = json.dumps(
+        {
+            "files": [],
+            "issues": [
+                {
+                    "file": "web/src/api.js",
+                    "duplicates": [
+                        [{"name": "getJSON", "line": 1, "col": 1}, {"name": "default", "line": 9, "col": 15}],
+                    ],
+                }
+            ],
+        }
+    )
     assert ratchet.parse_knip(text) == [
         Finding("web/src/api.js", 1, "knip:duplicates", "duplicate export: getJSON, default"),
         Finding("web/src/api.js", 9, "knip:duplicates", "duplicate export: getJSON, default"),
@@ -100,8 +118,7 @@ def test_coverage_section_wording_follows_the_labels():
     data = {"totals": {"percent_covered": 50.0, "covered_lines": 1, "num_statements": 2}, "files": {}}
     out = ratchet.coverage_section(json.dumps(data), "backend", "backend unit tests")
     assert out == (
-        "### coverage: 50.0% of backend lines (report only)\n"
-        "1 of 2 statements run by the backend unit tests."
+        "### coverage: 50.0% of backend lines (report only)\n1 of 2 statements run by the backend unit tests."
     )
 
 
@@ -116,8 +133,18 @@ def _run(tmp_path, monkeypatch, tool, text, *extra):
 
 def test_cli_coverage_reports_and_passes_even_in_enforce(tmp_path, monkeypatch, capsys):
     data = {"totals": {"percent_covered": 10.0, "covered_lines": 1, "num_statements": 10}, "files": {}}
-    rc = _run(tmp_path, monkeypatch, "coverage", json.dumps(data), "--mode", "enforce",
-              "--coverage-label", "api", "--coverage-suite", "api tests")
+    rc = _run(
+        tmp_path,
+        monkeypatch,
+        "coverage",
+        json.dumps(data),
+        "--mode",
+        "enforce",
+        "--coverage-label",
+        "api",
+        "--coverage-suite",
+        "api tests",
+    )
     assert rc == 0
     assert "10.0% of api lines" in capsys.readouterr().out
 
@@ -149,10 +176,14 @@ def test_unparseable_json_keeps_the_workflows_reason():
 
 
 # ---- what FMAPI ratchet_ext.py, fm-comp-time extra_gates.py and utility_billing changed_lines.py did ----
-COVERAGE_JSON = json.dumps({
-    "totals": {"percent_covered": 50.0, "covered_lines": 3, "num_statements": 6},
-    "files": {"app/x.py": {"missing_lines": [7, 3, 4, 9], "summary": {"percent_covered": 50.0, "num_statements": 6}}},
-})
+COVERAGE_JSON = json.dumps(
+    {
+        "totals": {"percent_covered": 50.0, "covered_lines": 3, "num_statements": 6},
+        "files": {
+            "app/x.py": {"missing_lines": [7, 3, 4, 9], "summary": {"percent_covered": 50.0, "num_statements": 6}}
+        },
+    }
+)
 
 
 def test_uncovered_is_one_finding_per_run():
@@ -170,8 +201,22 @@ def test_cli_uncovered_is_report_only_and_takes_the_subfolder(tmp_path, monkeypa
     (tmp_path / "d.diff").write_text(
         "diff --git a/api/app/x.py b/api/app/x.py\n+++ b/api/app/x.py\n@@ -0,0 +4,1 @@\n+x\n"
     )
-    rc = ratchet.main(["--tool", "uncovered", "--input", str(tmp_path / "in"), "--diff-file", str(tmp_path / "d.diff"),
-                       "--mode", "enforce", "--add-prefix", "api/", "--coverage-suite", "api tests"])
+    rc = ratchet.main(
+        [
+            "--tool",
+            "uncovered",
+            "--input",
+            str(tmp_path / "in"),
+            "--diff-file",
+            str(tmp_path / "d.diff"),
+            "--mode",
+            "enforce",
+            "--add-prefix",
+            "api/",
+            "--coverage-suite",
+            "api tests",
+        ]
+    )
     out = capsys.readouterr().out
     assert rc == 0
     assert "### uncovered: 1 finding on changed lines (report only)" in out
@@ -192,11 +237,19 @@ def test_add_prefix_follows_strip():
 
 def test_knip_per_issue_files_do_not_crash():
     """knip 5.6x lists an unused file under its own issue (FMAPI sync_ui fixture)."""
-    text = json.dumps({"issues": [
-        {"file": "src/jobHistory.ts", "exports": [{"name": "strip", "line": 23}],
-         "types": [{"name": "Freq", "line": 12}], "files": []},
-        {"file": "src/orphan.ts", "files": [{"name": "src/orphan.ts"}]},
-    ]})
+    text = json.dumps(
+        {
+            "issues": [
+                {
+                    "file": "src/jobHistory.ts",
+                    "exports": [{"name": "strip", "line": 23}],
+                    "types": [{"name": "Freq", "line": 12}],
+                    "files": [],
+                },
+                {"file": "src/orphan.ts", "files": [{"name": "src/orphan.ts"}]},
+            ]
+        }
+    )
     assert [(f.path, f.line, f.rule) for f in ratchet.parse_knip(text)] == [
         ("src/jobHistory.ts", 23, "knip:exports"),
         ("src/jobHistory.ts", 12, "knip:types"),
@@ -261,11 +314,21 @@ def test_mypy_errors_with_summary():
 
 def test_knip5_owners_and_member_dicts():
     """knip 5.43.6 with a CODEOWNERS file: owners is a list of strings, enum and class members are dicts."""
-    text = json.dumps({"files": [], "issues": [{
-        "file": "src/a.ts", "owners": ["@olemiss-fm/eng"], "dependencies": [], "exports": [],
-        "enumMembers": {"Color": [{"name": "Blue", "line": 3, "col": 3, "pos": 40}]},
-        "classMembers": {},
-    }]})
+    text = json.dumps(
+        {
+            "files": [],
+            "issues": [
+                {
+                    "file": "src/a.ts",
+                    "owners": ["@olemiss-fm/eng"],
+                    "dependencies": [],
+                    "exports": [],
+                    "enumMembers": {"Color": [{"name": "Blue", "line": 3, "col": 3, "pos": 40}]},
+                    "classMembers": {},
+                }
+            ],
+        }
+    )
     assert ratchet.parse_knip(text) == [Finding("src/a.ts", 3, "knip:enumMembers", "unused enumMembers: Blue")]
 
 

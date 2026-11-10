@@ -1,4 +1,5 @@
 """Behaviour lock for scripts/quality/ratchet.py. Fixtures are real tool output shapes."""
+
 import json
 import os
 import shutil
@@ -52,8 +53,7 @@ def test_diff_binary_ignored():
 
 
 def test_diff_added_line_that_looks_like_a_file_header():
-    d = ("diff --git a/a.md b/a.md\n--- a/a.md\n+++ b/a.md\n@@ -1,0 +2,2 @@\n+--- x\n+++ title\n"
-         "@@ -9,0 +12 @@\n+more\n")
+    d = "diff --git a/a.md b/a.md\n--- a/a.md\n+++ b/a.md\n@@ -1,0 +2,2 @@\n+--- x\n+++ title\n@@ -9,0 +12 @@\n+more\n"
     assert ratchet.parse_diff(d) == {"a.md": {2, 3, 12}}
 
 
@@ -127,8 +127,10 @@ def test_vulture_file_it_could_not_read_or_parse_counts_on_any_changed_line():
 
 
 def test_vulture_null_byte_file_on_python_3_12_plus_is_a_skipped_file():
-    text = ("app/nul.py:None: source code string cannot contain null bytes\n"
-            "app/ok.py:1: unused import 'os' (90% confidence)\n")
+    text = (
+        "app/nul.py:None: source code string cannot contain null bytes\n"
+        "app/ok.py:1: unused import 'os' (90% confidence)\n"
+    )
     nul = ratchet.PARSERS["vulture"](text)[0]
     assert (nul.path, nul.end_line) == ("app/nul.py", ratchet.WHOLE_FILE) and "not checked" in nul.message
 
@@ -280,8 +282,18 @@ def run(tmp_path, monkeypatch):
         out = tmp_path / "out.md"
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(out))
         rc = ratchet.main(
-            ["--tool", tool, "--input", os.path.join(FX, src), "--mode", mode,
-             "--diff-file", str(diff), "--strip-prefix", "/repo/"]
+            [
+                "--tool",
+                tool,
+                "--input",
+                os.path.join(FX, src),
+                "--mode",
+                mode,
+                "--diff-file",
+                str(diff),
+                "--strip-prefix",
+                "/repo/",
+            ]
         )
         return rc, (out.read_text() if out.exists() else "")
 
@@ -310,15 +322,27 @@ def test_main_unparseable_exit_two_in_both_modes(run):
 
 
 def test_main_missing_input_exit_two(tmp_path):
-    rc = ratchet.main(["--tool", "ruff", "--input", str(tmp_path / "nope"), "--mode", "report",
-                       "--diff-file", os.path.join(FX, "pr.diff")])
+    rc = ratchet.main(
+        [
+            "--tool",
+            "ruff",
+            "--input",
+            str(tmp_path / "nope"),
+            "--mode",
+            "report",
+            "--diff-file",
+            os.path.join(FX, "pr.diff"),
+        ]
+    )
     assert rc == 2
 
 
 def test_main_non_utf8_input_does_not_crash(tmp_path):
     f = tmp_path / "r.json"
-    f.write_bytes(b'[{"filename": "caf\xe9.py", "location": {"row": 1}, "end_location": {"row": 1}, '
-                  b'"code": "E1", "message": "m"}]')
+    f.write_bytes(
+        b'[{"filename": "caf\xe9.py", "location": {"row": 1}, "end_location": {"row": 1}, '
+        b'"code": "E1", "message": "m"}]'
+    )
     assert ratchet.main(["--tool", "ruff", "--input", str(f), "--diff-file", os.path.join(FX, "pr.diff")]) == 0
 
 
@@ -337,16 +361,18 @@ def test_main_vulture_empty_is_clean(tmp_path):
 def test_bad_quality_mode_env_is_an_error(tmp_path, monkeypatch):
     monkeypatch.setenv("QUALITY_MODE", "enforced")
     with pytest.raises(SystemExit) as e:
-        ratchet.main(["--tool", "ruff", "--input", os.path.join(FX, "ruff.json"),
-                      "--diff-file", os.path.join(FX, "pr.diff")])
+        ratchet.main(
+            ["--tool", "ruff", "--input", os.path.join(FX, "ruff.json"), "--diff-file", os.path.join(FX, "pr.diff")]
+        )
     assert e.value.code == 2
 
 
 def test_main_empty_input_exit_two(tmp_path):
     empty = tmp_path / "e.json"
     empty.write_text("")
-    rc = ratchet.main(["--tool", "ruff", "--input", str(empty), "--mode", "report",
-                       "--diff-file", os.path.join(FX, "pr.diff")])
+    rc = ratchet.main(
+        ["--tool", "ruff", "--input", str(empty), "--mode", "report", "--diff-file", os.path.join(FX, "pr.diff")]
+    )
     assert rc == 2
 
 
@@ -356,8 +382,22 @@ def test_main_unreadable_output_replaces_the_stale_section(tmp_path, monkeypatch
     monkeypatch.setattr(ratchet, "run_gh", gh)
     empty = tmp_path / "e.json"
     empty.write_text("")
-    rc = ratchet.main(["--tool", "ruff", "--input", str(empty), "--mode", "report",
-                       "--diff-file", os.path.join(FX, "pr.diff"), "--repo", "o/r", "--pr", "9"])
+    rc = ratchet.main(
+        [
+            "--tool",
+            "ruff",
+            "--input",
+            str(empty),
+            "--mode",
+            "report",
+            "--diff-file",
+            os.path.join(FX, "pr.diff"),
+            "--repo",
+            "o/r",
+            "--pr",
+            "9",
+        ]
+    )
     body = json.loads([c for c in gh.calls if "PATCH" in c[0]][0][1])["body"]
     assert rc == 2
     assert "ruff: could not evaluate" in body and "(ok)" not in body
@@ -366,9 +406,24 @@ def test_main_unreadable_output_replaces_the_stale_section(tmp_path, monkeypatch
 def test_main_posts_when_pr_given(tmp_path, monkeypatch):
     gh = FakeGh([])
     monkeypatch.setattr(ratchet, "run_gh", gh)
-    rc = ratchet.main(["--tool", "ruff", "--input", os.path.join(FX, "ruff.json"),
-                       "--mode", "report", "--diff-file", os.path.join(FX, "pr.diff"), "--strip-prefix", "/repo/",
-                       "--repo", "o/r", "--pr", "9"])
+    rc = ratchet.main(
+        [
+            "--tool",
+            "ruff",
+            "--input",
+            os.path.join(FX, "ruff.json"),
+            "--mode",
+            "report",
+            "--diff-file",
+            os.path.join(FX, "pr.diff"),
+            "--strip-prefix",
+            "/repo/",
+            "--repo",
+            "o/r",
+            "--pr",
+            "9",
+        ]
+    )
     assert rc == 0 and any("POST" in c[0] for c in gh.calls)
 
 
@@ -377,19 +432,38 @@ def test_main_comment_failure_does_not_fail_report(tmp_path, monkeypatch):
         raise ratchet.GhError("403")
 
     monkeypatch.setattr(ratchet, "run_gh", boom)
-    rc = ratchet.main(["--tool", "ruff", "--input", os.path.join(FX, "ruff.json"),
-                       "--mode", "report", "--diff-file", os.path.join(FX, "pr.diff"), "--strip-prefix", "/repo/",
-                       "--repo", "o/r", "--pr", "9"])
+    rc = ratchet.main(
+        [
+            "--tool",
+            "ruff",
+            "--input",
+            os.path.join(FX, "ruff.json"),
+            "--mode",
+            "report",
+            "--diff-file",
+            os.path.join(FX, "pr.diff"),
+            "--strip-prefix",
+            "/repo/",
+            "--repo",
+            "o/r",
+            "--pr",
+            "9",
+        ]
+    )
     assert rc == 0
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not in this image")
 def test_main_git_diff_default(tmp_path):
     """Without --diff-file it runs git diff -U0 <base>...HEAD in the given root."""
+
     def git(*a):
         subprocess.run(  # noqa: S603
             ["git", "-c", "user.email=a@b", "-c", "user.name=t", *a],  # noqa: S607
-            cwd=tmp_path, check=True, capture_output=True)
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
 
     git("init", "-q", "-b", "main")
     (tmp_path / "a.py").write_text("x = 1\n")

@@ -17,6 +17,7 @@ Canonical and only copy: olemiss-fm/.github scripts/quality/ratchet.py, run by t
 workflow .github/workflows/quality-gates.yml there. Repos call that workflow; none vendors it.
 Python 3 stdlib only.
 """
+
 import argparse
 import json
 import os
@@ -75,10 +76,26 @@ def parse_diff(text):
 
 
 def git_added_lines(base, root="."):
-    argv = ["git", "-c", "core.quotepath=off", "diff", "-U0", "--no-color", "--no-ext-diff",
-            "--src-prefix=a/", "--dst-prefix=b/", f"{base}...HEAD"]  # fixed prefixes, whatever diff.noprefix says
+    argv = [
+        "git",
+        "-c",
+        "core.quotepath=off",
+        "diff",
+        "-U0",
+        "--no-color",
+        "--no-ext-diff",
+        "--src-prefix=a/",
+        "--dst-prefix=b/",
+        f"{base}...HEAD",
+    ]  # fixed prefixes, whatever diff.noprefix says
     out = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        argv, cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
+        argv,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     if out.returncode != 0:
         raise ToolOutputError(f"git diff failed: {out.stderr.strip()}")
@@ -110,8 +127,7 @@ def parse_ruff(text):
 
 def parse_shellcheck(text):
     return [
-        Finding(d["file"], d["line"], f"SC{d['code']}", d["message"], d["endLine"])
-        for d in _list(text, "shellcheck")
+        Finding(d["file"], d["line"], f"SC{d['code']}", d["message"], d["endLine"]) for d in _list(text, "shellcheck")
     ]
 
 
@@ -301,7 +317,7 @@ def normalize_path(p, prefixes=(), add=""):
     """Drop the first matching prefix and any "./", then prepend `add` (the folder a tool ran in)."""
     for pre in prefixes:
         if p.startswith(pre):
-            p = p[len(pre):]
+            p = p[len(pre) :]
             break
     while p.startswith("./"):
         p = p[2:]
@@ -369,8 +385,14 @@ def merge_comment(existing, tool, section):
 # ---- GitHub ---------------------------------------------------------------------
 def run_gh(args, body=None):
     p = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["gh", *args], input=body, capture_output=True, text=True, encoding="utf-8", errors="replace",  # noqa: S607
-        check=False)
+        ["gh", *args],
+        input=body,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",  # noqa: S607
+        check=False,
+    )
     if p.returncode != 0:
         raise GhError(p.stderr.strip() or f"gh exited {p.returncode}")
     return p.stdout
@@ -395,8 +417,9 @@ def post_comment(repo, pr, tool, section, gh=run_gh):
 # ---- cli ------------------------------------------------------------------------
 def _args(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--tool", required=True, choices=sorted([*PARSERS, COVERAGE]),
-                    help="tool name; also the output format")
+    ap.add_argument(
+        "--tool", required=True, choices=sorted([*PARSERS, COVERAGE]), help="tool name; also the output format"
+    )
     ap.add_argument("--input", required=True, help="file holding the tool output")
     ap.add_argument("--mode", choices=("report", "enforce"), default=os.environ.get("QUALITY_MODE", "report"))
     ap.add_argument("--base", default="origin/main")
@@ -405,11 +428,15 @@ def _args(argv):
     ap.add_argument("--add-prefix", default="", help="path prefix to add after stripping (the tool ran in a subfolder)")
     ap.add_argument("--repo", help="owner/name; with --pr, post the sticky comment")
     ap.add_argument("--pr", type=int)
-    ap.add_argument("--scope-label", default="Whole repo",
-                    help="what the existing count covers, when the tool did not read the whole repo")
+    ap.add_argument(
+        "--scope-label",
+        default="Whole repo",
+        help="what the existing count covers, when the tool did not read the whole repo",
+    )
     ap.add_argument("--coverage-label", default="backend", help="coverage: what the lines are, e.g. backend")
-    ap.add_argument("--coverage-suite", default="backend unit tests",
-                    help="coverage and uncovered: the suite that ran them")
+    ap.add_argument(
+        "--coverage-suite", default="backend unit tests", help="coverage and uncovered: the suite that ran them"
+    )
     a = ap.parse_args(argv)
     if a.mode not in ("report", "enforce"):  # argparse does not check a default (QUALITY_MODE) against choices
         ap.error(f"invalid mode {a.mode!r}: use report or enforce")
