@@ -1,3 +1,5 @@
+# Lint config for the quality ratchet (see docs/quality-gates.md). The gate judges only
+# lines a PR adds or edits, so the existing backlog is not fixed here.
 [tool.ruff]
 line-length = 120
 target-version = "py313"
