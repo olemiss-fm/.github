@@ -9,9 +9,9 @@ Workflow: `.github/workflows/quality-gates.yml` in this repo (`on: workflow_call
 calls it from a thin caller pinned to a commit SHA of this repo, and its job runs in the calling
 repo, on that repo's runners (`fm-ci` by default, so 0 GitHub minutes). Each tool runs in a
 digest-pinned container. `scripts/quality/ratchet.py`, fetched from this repo at the same SHA
-as the workflow, then keeps only the
-findings that sit on lines the PR adds or edits (`git diff -U0 origin/<base branch>...HEAD`). Old code
-the PR does not touch never fails the PR. That is the "ratchet": quality can only go up.
+as the workflow, then keeps only the findings that sit on lines the PR adds or edits
+(`git diff -U0 origin/<base branch>...HEAD`). Old code the PR does not touch never fails the
+PR. That is the "ratchet": quality can only go up.
 
 All tools share ONE sticky PR comment, headed `Quality ratchet (changed lines only)`, with one
 section per tool. It is updated in place on every push, never added to.
@@ -33,22 +33,22 @@ Whole repo: 6197 existing. Only lines this PR adds or edits are judged. Mode: re
 
 ### Modes
 
-One input, `mode:` in the repo's caller. Any value other than `report` or `enforce` is an error (exit 2).
+One input, `mode:` in the repo's caller. Any value other than `report` or `enforce` is an
+error (exit 2).
 
 | Mode | Findings on changed lines | Check result |
 |---|---|---|
 | `report` (now) | comment | green |
 | `enforce` | comment | red |
 
-Flip a repo to `enforce` with a one-line PR to its caller after the report-only week. If a tool cannot produce
-readable output (crash, empty file, wrong format) the step fails with exit 2 in either mode,
-and its section in the comment says "could not evaluate": a gate that silently stops checking
-is worse than a red one. Vulture prints nothing when it is clean, so its step also checks the
-exit code (0 clean, 3 dead code found, 1 a file it could not read or parse; anything else
-fails). Vulture skips a file it cannot read or parse, so the ratchet reports that file as
-"file not checked" on any line a PR changes in it.
-Each section lists at most 18 findings, each line cut at 240 characters, so the one comment
-stays under GitHub's size limit.
+Flip a repo to `enforce` with a one-line PR to its caller after the report-only week. If a tool
+cannot produce readable output (crash, empty file, wrong format) the step fails with exit 2 in
+either mode, and its section in the comment says "could not evaluate": a gate that silently
+stops checking is worse than a red one. Vulture prints nothing when it is clean, so its step
+also checks the exit code (0 clean, 3 dead code found, 1 a file it could not read or parse;
+anything else fails). Vulture skips a file it cannot read or parse, so the ratchet reports that
+file as "file not checked" on any line a PR changes in it. Each section lists at most 18
+findings, each line cut at 240 characters, so the one comment stays under GitHub's size limit.
 
 ### Fixing a finding you disagree with
 
@@ -188,12 +188,11 @@ python3 path/to/ratchet.py --tool ruff --input ruff.json --strip-prefix /repo/ -
 ```
 
 Without `--repo` and `--pr` it only prints; nothing is posted. `--diff-file` replaces the
-`git diff`. Interface: `--tool NAME --input FILE [--mode report|enforce] [--base REF]
-[--diff-file F] [--strip-prefix P] [--add-prefix P] [--repo OWNER/NAME --pr N]
-[--coverage-label L] [--coverage-suite S]`; the tool name is also the output format (`coverage`
-and `uncovered` read a pytest-cov JSON report). Exit 0 ok, 1 enforce failed, 2 unreadable output. `GITHUB_STEP_SUMMARY` is also
-written when set. Tests: `scripts/quality/tests` (pytest; fixtures are real tool output),
-run on every PR here by `.github/workflows/gates.yml`.
+`git diff`. `python3 ratchet.py --help` lists every flag; the tool name is also the output
+format (`coverage` and `uncovered` read a pytest-cov JSON report). Exit 0 ok, 1 enforce failed, 2
+unreadable output. `GITHUB_STEP_SUMMARY` is also written when set. Tests:
+`scripts/quality/tests` (pytest; fixtures are real tool output), run on every PR here by
+`.github/workflows/gates.yml`.
 
 ## Changing the gates
 

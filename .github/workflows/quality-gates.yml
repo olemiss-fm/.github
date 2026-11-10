@@ -1,20 +1,8 @@
 name: Quality gates
 
 # The one shared quality-gates workflow for every olemiss-fm repo (olemiss-fm/ops#769).
-# Each repo keeps a thin caller that names its tools and mode and pins this file to a commit SHA:
-#
-#   on:
-#     pull_request:
-#   permissions:
-#     contents: read
-#     pull-requests: write
-#   jobs:
-#     gates:
-#       uses: olemiss-fm/.github/.github/workflows/quality-gates.yml@<sha>
-#       with:
-#         tools: ruff vulture shellcheck actionlint
-#         mode: report
-#
+# Each repo keeps a thin caller that names its tools and mode and pins this file to a commit SHA
+# (the caller and every input: docs/quality-gates.md in this repo).
 # Each tool runs in a digest-pinned container and scripts/quality/ratchet.py (from this repo, at
 # the same commit as this file) keeps only findings on lines the PR adds or edits, then updates
 # ONE sticky PR comment. `mode: report` comments and passes; `mode: enforce` fails the check when
@@ -70,10 +58,7 @@ on:
       extra-gates:
         description: >-
           Path, in the calling repo, of a bash script for that repo's own gates (eslint, tsc, knip,
-          mypy, coverage). It runs last, in the same job, under bash -uo pipefail, with RATCHET,
-          RATCHET_PY, PYTHONPATH, DR, DRT, PYTHON_IMAGE, NODE_IMAGE and QUALITY_DIR set; see
-          docs/quality-gates.md. The step fails with the worst exit code of the script and of every
-          $RATCHET call it made.
+          mypy, coverage). It runs last, in the same job; its contract is in docs/quality-gates.md.
         type: string
         default: ''
 
@@ -117,20 +102,20 @@ jobs:
       - name: Prepare
         id: prepare
         env:
-          MODE: ${{ inputs.mode }}
           TOOLS_IN: ${{ inputs.tools }}
           PR: ${{ github.event.pull_request.number }}
           # this workflow's own repo and commit, so the ratchet is the one this file was pinned with
           GATES_REPO: ${{ job.workflow_repository }}
           GATES_SHA: ${{ job.workflow_sha }}
         run: |
-          case "$MODE" in report|enforce) ;; *) echo "mode must be report or enforce, not '$MODE'"; exit 2 ;; esac
+          case "$QUALITY_MODE" in report|enforce) ;; *) echo "mode must be report or enforce, not '$QUALITY_MODE'"; exit 2 ;; esac
           read -ra want -d '' <<< "$TOOLS_IN"
           [ "${#want[@]}" -gt 0 ] || { echo "tools is empty: name at least one gate"; exit 2; }
+          known="ruff vulture jscpd shellcheck hadolint actionlint sqlfluff"
           for t in "${want[@]}"; do
-            case " ruff vulture jscpd shellcheck hadolint actionlint sqlfluff " in
+            case " $known " in
               *" $t "*) ;;
-              *) echo "unknown tool '$t' in tools (space-separated: ruff vulture jscpd shellcheck hadolint actionlint sqlfluff)"; exit 2 ;;
+              *) echo "unknown tool '$t' in tools (space-separated: $known)"; exit 2 ;;
             esac
           done
           q="$RUNNER_TEMP/quality"
@@ -152,14 +137,15 @@ jobs:
           exit "\$rc"
           EOF
           chmod +x "$q/ratchet" || exit 2
+          # flags every tool container shares: read-only repo at /repo, run as the runner user
+          dr="--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
           {
             echo "QUALITY_DIR=$q"
             echo "RATCHET=$q/ratchet"
             echo "RATCHET_PY=$q/ratchet.py"
-            # flags every tool container shares: read-only repo at /repo, run as the runner user
-            echo "DR=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
+            echo "DR=$dr"
             # plus a writable /tmp, for tools that install or cache something
-            echo "DRT=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo --tmpfs /tmp:exec,mode=1777 -e HOME=/tmp"
+            echo "DRT=$dr --tmpfs /tmp:exec,mode=1777 -e HOME=/tmp"
           } >> "$GITHUB_ENV"
           echo "tools= ${want[*]} " >> "$GITHUB_OUTPUT"
 
@@ -218,18 +204,16 @@ jobs:
           list="$QUALITY_DIR/shellcheck.list"
           if ! git ls-files -z '*.sh' > "$list"; then
             echo "git ls-files failed" > "$out"
-          else
+          elif [ -s "$list" ]; then
             mapfile -d '' files < "$list"
-            if [ "${#files[@]}" -gt 0 ]; then
-              # shellcheck disable=SC2086
-              docker run $DR "$SHELLCHECK_IMAGE" -f json -- "${files[@]}" > "$out"
-              rc=$?
-              # 0 clean, 1 findings. Anything else (2 a file it could not read, which still prints valid
-              # JSON without it, or docker failed) must not read as a clean run.
-              case "$rc" in 0|1) ;; *) echo "shellcheck did not run cleanly (exit $rc)" > "$out" ;; esac
-            else
-              echo '[]' > "$out"
-            fi
+            # shellcheck disable=SC2086
+            docker run $DR "$SHELLCHECK_IMAGE" -f json -- "${files[@]}" > "$out"
+            rc=$?
+            # 0 clean, 1 findings. Anything else (2 a file it could not read, which still prints valid
+            # JSON without it, or docker failed) must not read as a clean run.
+            case "$rc" in 0|1) ;; *) echo "shellcheck did not run cleanly (exit $rc)" > "$out" ;; esac
+          else
+            echo '[]' > "$out"
           fi
           "$RATCHET" --tool shellcheck --input "$out"
 
@@ -272,11 +256,13 @@ jobs:
           list="$QUALITY_DIR/sqlfluff.list"
           if [ "$CHANGED_ONLY" = true ]; then
             # the ratchet drops findings in files the PR does not touch, so this changes only the
-            # existing count (its --scope-label below says so) and keeps a repo with hundreds of
+            # existing count (its --scope-label says so) and keeps a repo with hundreds of
             # migrations inside the timeout
             list_sql() { git diff -z --name-only --diff-filter=AMR "origin/$GITHUB_BASE_REF...HEAD" -- "$@"; }
+            scope=(--scope-label "In the SQL files this PR changes")
           else
             list_sql() { git ls-files -z -- "$@"; }
+            scope=()
           fi
           read -ra specs -d '' <<< "$SQLFLUFF_PATHS"
           if [ "${#specs[@]}" -eq 0 ]; then
@@ -289,8 +275,6 @@ jobs:
           else
             echo '[]' > "$out"
           fi
-          scope=()
-          [ "$CHANGED_ONLY" = true ] && scope=(--scope-label "In the SQL files this PR changes")
           "$RATCHET" --tool sqlfluff --input "$out" "${scope[@]}"
 
       - name: extra gates (${{ inputs.extra-gates }})

@@ -23,7 +23,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 STICKY = "<!-- ratchet-sticky -->"
 DEFAULT_LIMIT = 18  # 13 sections x 18 lines x 240 chars, plus headers, stays under the 65536 char comment limit
@@ -128,12 +128,9 @@ def parse_sqlfluff(text):
 
 
 def parse_actionlint(text):
-    data = _json(text)  # a clean run prints `null`
-    if data is None:
+    if _json(text) is None:  # a clean run prints `null`
         return []
-    if not isinstance(data, list):
-        raise ToolOutputError("actionlint output must be a JSON list")
-    return [Finding(d["filepath"], d["line"], d["kind"], d["message"]) for d in data]
+    return [Finding(d["filepath"], d["line"], d["kind"], d["message"]) for d in _list(text, "actionlint")]
 
 
 def parse_jscpd(text):
@@ -244,7 +241,7 @@ def parse_knip(text):
     return out
 
 
-def coverage_section(text, label, suite, floor_files=8):
+def coverage_section(text, label, suite):
     """Report-only coverage summary from a `coverage json` / pytest-cov report."""
     data = _json(text)
     total = data["totals"]
@@ -255,7 +252,7 @@ def coverage_section(text, label, suite, floor_files=8):
     worst = sorted(
         (f for f in data["files"].items() if f[1]["summary"]["num_statements"] >= 50),
         key=lambda f: f[1]["summary"]["percent_covered"],
-    )[:floor_files]
+    )[:8]
     if worst:
         lines += ["", "Least covered files (50+ statements):"]
         lines += [f"- `{_clean(p)}` {s['summary']['percent_covered']:.0f}%" for p, s in worst]
@@ -312,7 +309,7 @@ def normalize_path(p, prefixes=(), add=""):
 
 
 def normalize(findings, prefixes=(), add=""):
-    return [Finding(normalize_path(f.path, prefixes, add), f.line, f.rule, f.message, f.end_line) for f in findings]
+    return [replace(f, path=normalize_path(f.path, prefixes, add)) for f in findings]
 
 
 def on_changed_lines(findings, added):
@@ -419,32 +416,36 @@ def _args(argv):
     return a
 
 
+def _evaluate(a):
+    """Return (section, exit code) for the tool output named by the parsed arguments."""
+    try:
+        with open(a.input, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError as exc:
+        raise ToolOutputError(f"cannot read {a.input}: {exc}") from exc
+    if not text.strip() and a.tool not in EMPTY_OK:
+        raise ToolOutputError(f"{a.input} is empty: the tool produced no output")
+    if a.tool == COVERAGE:
+        return coverage_section(text, a.coverage_label, a.coverage_suite), 0
+    if a.tool == UNCOVERED:
+        found, mode = parse_uncovered(text, a.coverage_suite), "report"
+    else:
+        found, mode = PARSERS[a.tool](text), a.mode
+    every = normalize(found, a.strip_prefix, a.add_prefix)
+    if a.diff_file:
+        with open(a.diff_file, encoding="utf-8", errors="replace") as fh:
+            added = parse_diff(fh.read())
+    else:
+        added = git_added_lines(a.base)
+    kept = on_changed_lines(every, added)
+    section = render_section(a.tool, kept, len(every), mode, scope=a.scope_label)
+    return section, 1 if (mode == "enforce" and kept) else 0
+
+
 def main(argv=None):
     a = _args(argv)
     try:
-        try:
-            with open(a.input, encoding="utf-8", errors="replace") as fh:
-                text = fh.read()
-        except OSError as exc:
-            raise ToolOutputError(f"cannot read {a.input}: {exc}") from exc
-        if not text.strip() and a.tool not in EMPTY_OK:
-            raise ToolOutputError(f"{a.input} is empty: the tool produced no output")
-        if a.tool == COVERAGE:
-            section, rc = coverage_section(text, a.coverage_label, a.coverage_suite), 0
-        else:
-            if a.tool == UNCOVERED:
-                found, mode = parse_uncovered(text, a.coverage_suite), "report"
-            else:
-                found, mode = PARSERS[a.tool](text), a.mode
-            every = normalize(found, a.strip_prefix, a.add_prefix)
-            if a.diff_file:
-                with open(a.diff_file, encoding="utf-8", errors="replace") as fh:
-                    added = parse_diff(fh.read())
-            else:
-                added = git_added_lines(a.base)
-            kept = on_changed_lines(every, added)
-            section = render_section(a.tool, kept, len(every), mode, scope=a.scope_label)
-            rc = 1 if (mode == "enforce" and kept) else 0
+        section, rc = _evaluate(a)
     except (ToolOutputError, KeyError, TypeError, AttributeError, ValueError, OSError) as exc:
         print(f"ratchet: {a.tool}: cannot evaluate: {exc!r}", file=sys.stderr)
         # replace this tool's section too, so the comment never keeps an older run's "ok"
