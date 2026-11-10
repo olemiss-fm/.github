@@ -1,0 +1,7 @@
+{"statistics":{"total":{"lines":100,"clones":1}},
+ "duplicates":[{"format":"python","lines":12,"tokens":120,"fragment":"x",
+  "firstFile":{"name":"app/new.py","start":1,"end":3,"startLoc":{"line":1,"column":1},"endLoc":{"line":3,"column":2}},
+  "secondFile":{"name":"app/untouched.py","start":50,"end":62,"startLoc":{"line":50,"column":1},"endLoc":{"line":62,"column":2}}},
+  {"format":"python","lines":12,"tokens":120,"fragment":"x",
+  "firstFile":{"name":"app/untouched.py","start":1,"end":13},
+  "secondFile":{"name":"app/untouched2.py","start":1,"end":13}}]}

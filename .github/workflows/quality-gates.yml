@@ -1,40 +1,97 @@
 name: Quality gates
 
-# Senior-engineer review, automated: each tool runs in a digest-pinned container and the
-# ratchet (scripts/quality/ratchet.py) keeps only findings on lines this PR adds or edits,
-# then updates ONE sticky PR comment. See docs/quality-gates.md for how to read a result.
-# QUALITY_MODE is the single switch: `report` comments and passes, `enforce` fails the check
-# when a finding sits on a changed line. Runs on a GitHub-hosted runner: this repo is public,
-# so it is free there, and the org runner group (fm-ci) does not serve public repos.
+# The one shared quality-gates workflow for every olemiss-fm repo (olemiss-fm/ops#769).
+# Each repo keeps a thin caller that names its tools and mode and pins this file to a commit SHA:
+#
+#   on:
+#     pull_request:
+#   permissions:
+#     contents: read
+#     pull-requests: write
+#   jobs:
+#     gates:
+#       uses: olemiss-fm/.github/.github/workflows/quality-gates.yml@<sha>
+#       with:
+#         tools: ruff vulture shellcheck actionlint
+#         mode: report
+#
+# Each tool runs in a digest-pinned container and scripts/quality/ratchet.py (from this repo, at
+# the same commit as this file) keeps only findings on lines the PR adds or edits, then updates
+# ONE sticky PR comment. `mode: report` comments and passes; `mode: enforce` fails the check when
+# a finding sits on a changed line. How to read a result: docs/quality-gates.md in this repo.
 
 on:
-  pull_request:
-
-permissions:
-  contents: read
-  pull-requests: write
-
-concurrency:
-  group: quality-gates-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      tools:
+        description: Space-separated gates to run, from ruff vulture jscpd shellcheck hadolint actionlint sqlfluff.
+        type: string
+        default: ruff vulture jscpd shellcheck hadolint actionlint sqlfluff
+      mode:
+        description: report (comment, pass) or enforce (fail on a changed-line finding).
+        type: string
+        default: report
+      runs-on:
+        description: Runner labels as JSON. The fm-ci group serves private repos only.
+        type: string
+        default: '["self-hosted", "fm-ci"]'
+      python-image:
+        description: Python image for vulture, the ratchet and the extra gates (digest-pinned).
+        type: string
+        default: python@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 # 3.13-slim
+      jscpd-paths:
+        description: Space-separated paths jscpd scans.
+        type: string
+        default: .
+      jscpd-formats:
+        description: jscpd --format list.
+        type: string
+        default: python,bash,yaml,sql
+      jscpd-ignore:
+        description: jscpd --ignore globs, comma-separated; empty passes no --ignore.
+        type: string
+        default: '**/node_modules/**,**/secrets/**,**/.git/**'
+      sqlfluff-paths:
+        description: Space-separated git pathspecs of the SQL files sqlfluff lints.
+        type: string
+        default: '*/migrations/*.sql'
+      extra-gates:
+        description: >-
+          Path, in the calling repo, of a bash script for that repo's own gates (eslint, tsc, knip,
+          mypy, coverage). It runs last, in the same job, with RATCHET, DR, DRT, PYTHON_IMAGE,
+          NODE_IMAGE and QUALITY_DIR set; it calls `$RATCHET --tool <name> --input <file>` per tool.
+        type: string
+        default: ''
 
 env:
-  QUALITY_MODE: report
+  QUALITY_MODE: ${{ inputs.mode }}
+  PYTHON_IMAGE: ${{ inputs.python-image }}
+  RUFF_IMAGE: ghcr.io/astral-sh/ruff@sha256:bc933cfbec4681fca54b9404653ceefdc97f6adf0b27b8a0e93b0be0af8a9273 # 0.14.3
+  NODE_IMAGE: node@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d # 22-slim
   SHELLCHECK_IMAGE: koalaman/shellcheck@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb # v0.10.0
+  HADOLINT_IMAGE: hadolint/hadolint@sha256:3c206a451cec6d486367e758645269fd7d696c5ccb6ff59d8b03b0e45268a199 # v2.12.0-alpine
   ACTIONLINT_IMAGE: rhysd/actionlint@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 # 1.7.7
+  SQLFLUFF_IMAGE: sqlfluff/sqlfluff@sha256:631e960f9ba8f68beb0cd01f5a788de5eeee340e54fa725faab736345c7a38ed # 3.4.2
 
 jobs:
   gates:
     name: changed-lines ratchet
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     timeout-minutes: 25
+    # the caller grants these and sets no concurrency of its own (the same group there would deadlock)
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      group: quality-gates-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     defaults:
       run:
         # GitHub's default is bash -e; the gate steps handle tool exit codes themselves
-        shell: bash {0}
+        shell: bash --noprofile --norc -uo pipefail {0}
     env:
       GH_TOKEN: ${{ github.token }}
-      RATCHET: python3 scripts/quality/ratchet.py --repo ${{ github.repository }} --pr ${{ github.event.pull_request.number }} --base origin/${{ github.base_ref }} --strip-prefix /repo/
+      TOOLS: ' ${{ inputs.tools }} '
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -42,33 +99,147 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare
+        env:
+          MODE: ${{ inputs.mode }}
+          # this workflow's own repo and commit, so the ratchet is the one this file was pinned with
+          GATES_REPO: ${{ job.workflow_repository }}
+          GATES_SHA: ${{ job.workflow_sha }}
         run: |
-          mkdir -p "$RUNNER_TEMP/quality"
-          # flags every tool container shares: read-only repo at /repo, run as the runner user
-          echo "DR=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo" >> "$GITHUB_ENV"
+          case "$MODE" in report|enforce) ;; *) echo "mode must be report or enforce, not '$MODE'"; exit 2 ;; esac
+          q="$RUNNER_TEMP/quality"
+          mkdir -p "$q"
+          if [ "$GATES_REPO" = "$GITHUB_REPOSITORY" ]; then
+            # this repo calling itself: test the ratchet the PR carries
+            cp scripts/quality/ratchet.py "$q/ratchet.py" || exit 2
+          else
+            [ -n "$GATES_SHA" ] || { echo "no workflow SHA in the job context"; exit 2; }
+            curl -fsSL --retry 3 -o "$q/ratchet.py" \
+              "https://raw.githubusercontent.com/$GATES_REPO/$GATES_SHA/scripts/quality/ratchet.py" || exit 2
+          fi
+          {
+            echo "QUALITY_DIR=$q"
+            # flags every tool container shares: read-only repo at /repo, run as the runner user
+            echo "DR=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
+            # plus a writable /tmp, for tools that install or cache something
+            echo "DRT=--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo --tmpfs /tmp:exec,mode=1777 -e HOME=/tmp"
+            echo "RATCHET=python3 $q/ratchet.py --repo $GITHUB_REPOSITORY --pr ${{ github.event.pull_request.number }} --base origin/$GITHUB_BASE_REF --strip-prefix /repo/"
+          } >> "$GITHUB_ENV"
+
+      - name: ruff
+        if: ${{ !cancelled() && contains(env.TOOLS, ' ruff ') }}
+        run: |
+          out="$QUALITY_DIR/ruff.json"
+          # shellcheck disable=SC2086
+          docker run $DR "$RUFF_IMAGE" check --no-cache --output-format json . > "$out" || true
+          # shellcheck disable=SC2086
+          $RATCHET --tool ruff --input "$out"
+
+      - name: vulture
+        if: ${{ !cancelled() && contains(env.TOOLS, ' vulture ') }}
+        run: |
+          out="$QUALITY_DIR/vulture.txt"
+          # shellcheck disable=SC2086
+          docker run $DRT "$PYTHON_IMAGE" sh -c '
+            pip install -q --user --no-warn-script-location vulture==2.14 >&2 || exit 4
+            python -m vulture . --min-confidence 80 --exclude "secrets/*,*/secrets/*" 2>&1
+          ' > "$out"
+          rc=$?
+          # 0 clean, 3 dead code found, 1 a file it could not read or parse (it says so on stderr,
+          # merged in above, and the ratchet judges that whole file). Anything else (pip or docker
+          # failed) must not read as a clean run, since vulture prints nothing when clean: the
+          # reason replaces the output, the ratchet cannot parse it, and the step fails with it.
+          case "$rc" in 0|1|3) ;; *) echo "vulture did not run cleanly (exit $rc)" > "$out" ;; esac
+          # shellcheck disable=SC2086
+          $RATCHET --tool vulture --input "$out"
+
+      - name: jscpd
+        if: ${{ !cancelled() && contains(env.TOOLS, ' jscpd ') }}
+        env:
+          JSCPD_PATHS: ${{ inputs.jscpd-paths }}
+          JSCPD_FORMATS: ${{ inputs.jscpd-formats }}
+          JSCPD_IGNORE: ${{ inputs.jscpd-ignore }}
+        run: |
+          out="$QUALITY_DIR/jscpd.json"
+          # shellcheck disable=SC2086
+          docker run $DRT -e npm_config_cache=/tmp/npm -e JSCPD_PATHS -e JSCPD_FORMATS -e JSCPD_IGNORE \
+            "$NODE_IMAGE" sh -c '
+            npx --yes jscpd@4.0.5 $JSCPD_PATHS --silent --reporters json --output /tmp/j \
+              --min-lines 15 --min-tokens 150 --format "$JSCPD_FORMATS" \
+              ${JSCPD_IGNORE:+--ignore "$JSCPD_IGNORE"} >&2 || exit 4
+            # jscpd writes no report when it finds no clones
+            if [ -f /tmp/j/jscpd-report.json ]; then cat /tmp/j/jscpd-report.json; else echo "{\"duplicates\":[]}"; fi
+          ' > "$out" || true
+          # shellcheck disable=SC2086
+          $RATCHET --tool jscpd --input "$out"
 
       - name: shellcheck
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && contains(env.TOOLS, ' shellcheck ') }}
         run: |
-          set -uo pipefail
-          out="$RUNNER_TEMP/quality/shellcheck.json"
-          git ls-files -z '*.sh' > "$RUNNER_TEMP/quality/shellcheck.list"
-          if [ -s "$RUNNER_TEMP/quality/shellcheck.list" ]; then
+          out="$QUALITY_DIR/shellcheck.json"
+          list="$QUALITY_DIR/shellcheck.list"
+          git ls-files -z '*.sh' > "$list" || { echo "git ls-files failed"; exit 2; }
+          mapfile -d '' files < "$list"
+          if [ "${#files[@]}" -gt 0 ]; then
             # shellcheck disable=SC2086
-            xargs -0 docker run $DR "$SHELLCHECK_IMAGE" -f json < "$RUNNER_TEMP/quality/shellcheck.list" > "$out" || true
+            docker run $DR "$SHELLCHECK_IMAGE" -f json -- "${files[@]}" > "$out"
+            rc=$?
+            # 0 clean, 1 findings. Anything else (2 a file it could not read, which still prints valid
+            # JSON without it, or docker failed) must not read as a clean run.
+            case "$rc" in 0|1) ;; *) echo "shellcheck did not run cleanly (exit $rc)"; exit 2 ;; esac
           else
             echo '[]' > "$out"
           fi
           # shellcheck disable=SC2086
           $RATCHET --tool shellcheck --input "$out"
 
-      - name: actionlint
-        if: ${{ !cancelled() }}
+      - name: hadolint
+        if: ${{ !cancelled() && contains(env.TOOLS, ' hadolint ') }}
         run: |
-          set -uo pipefail
-          out="$RUNNER_TEMP/quality/actionlint.json"
+          out="$QUALITY_DIR/hadolint.json"
+          git ls-files -z '*Dockerfile*' > "$QUALITY_DIR/hadolint.list"
+          if [ -s "$QUALITY_DIR/hadolint.list" ]; then
+            # shellcheck disable=SC2086
+            xargs -0 docker run $DR "$HADOLINT_IMAGE" hadolint -f json < "$QUALITY_DIR/hadolint.list" > "$out" || true
+          else
+            echo '[]' > "$out"
+          fi
           # shellcheck disable=SC2086
-          docker run $DR "$ACTIONLINT_IMAGE" -format '{{json .}}' \
-            .github/workflows/*.yml > "$out" || true
+          $RATCHET --tool hadolint --input "$out"
+
+      - name: actionlint
+        if: ${{ !cancelled() && contains(env.TOOLS, ' actionlint ') }}
+        run: |
+          out="$QUALITY_DIR/actionlint.json"
+          cfg=()
+          [ -f .github/actionlint.yaml ] && cfg=(-config-file .github/actionlint.yaml)
+          # no file list: actionlint finds every .yml and .yaml workflow itself
+          # shellcheck disable=SC2086
+          docker run $DR "$ACTIONLINT_IMAGE" "${cfg[@]}" -format '{{json .}}' > "$out"
+          rc=$?
+          # 0 clean, 1 findings; anything else is a bad config or a crash
+          case "$rc" in 0|1) ;; *) echo "actionlint did not run cleanly (exit $rc)"; exit 2 ;; esac
           # shellcheck disable=SC2086
           $RATCHET --tool actionlint --input "$out"
+
+      - name: sqlfluff
+        if: ${{ !cancelled() && contains(env.TOOLS, ' sqlfluff ') }}
+        env:
+          SQLFLUFF_PATHS: ${{ inputs.sqlfluff-paths }}
+        run: |
+          out="$QUALITY_DIR/sqlfluff.json"
+          read -ra specs <<< "$SQLFLUFF_PATHS"
+          git ls-files -z -- "${specs[@]}" > "$QUALITY_DIR/sqlfluff.list"
+          if [ -s "$QUALITY_DIR/sqlfluff.list" ]; then
+            # shellcheck disable=SC2086
+            xargs -0 docker run $DR "$SQLFLUFF_IMAGE" lint --dialect postgres --format json < "$QUALITY_DIR/sqlfluff.list" > "$out" || true
+          else
+            echo '[]' > "$out"
+          fi
+          # shellcheck disable=SC2086
+          $RATCHET --tool sqlfluff --input "$out"
+
+      - name: extra gates (${{ inputs.extra-gates }})
+        if: ${{ !cancelled() && inputs.extra-gates != '' }}
+        env:
+          EXTRA_GATES: ${{ inputs.extra-gates }}
+        run: bash --noprofile --norc -uo pipefail "$EXTRA_GATES"

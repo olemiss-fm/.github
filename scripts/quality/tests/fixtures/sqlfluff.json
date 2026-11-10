@@ -1,0 +1,4 @@
+[{"filepath":"app/new.py","violations":[
+  {"start_line_no":3,"start_line_pos":1,"code":"LT01","description":"Unnecessary whitespace","name":"layout.spacing","warning":false,"fixes":[],"start_file_pos":10,"end_line_no":3,"end_line_pos":4,"end_file_pos":13},
+  {"start_line_no":20,"start_line_pos":1,"code":"LT02","description":"Bad indent","name":"layout.indent","warning":false,"fixes":[],"end_line_no":20,"end_line_pos":3}]},
+ {"filepath":"app/old.py","violations":[]}]

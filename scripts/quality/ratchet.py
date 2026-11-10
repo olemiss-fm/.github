@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-# ratchet-version: 1
+# ratchet-version: 3
 """Changed-lines quality ratchet.
 
-Reads the output of one lint/analysis tool (JSON or vulture text), keeps only the
-findings that sit on lines this PR adds or edits (`git diff -U0 <base>...HEAD`), and
-reports them in one sticky PR comment with a section per tool.
+Reads the output of one lint/analysis tool (JSON, or the text vulture, mypy and tsc print),
+keeps only the findings that sit on lines this PR adds or edits (`git diff -U0 <base>...HEAD`),
+and reports them in one sticky PR comment with a section per tool. `--tool coverage` reads a
+pytest-cov JSON report and adds a report-only coverage section instead.
 
-  report   always exits 0 (a broken tool run still exits 2)
+  report   always exits 0 (a broken tool run still exits 2, and says so in the comment)
   enforce  exits 1 when any finding is on a changed line
 
 Exit codes: 0 ok, 1 enforce failed, 2 the tool output could not be read or parsed.
 
-Canonical copy: olemiss-fm/ops scripts/quality/ratchet.py. Other repos vendor a copy
-and keep the `ratchet-version` header; do not edit a vendored copy in place.
+Canonical and only copy: olemiss-fm/.github scripts/quality/ratchet.py, run by the shared
+workflow .github/workflows/quality-gates.yml there. Repos call that workflow; none vendors it.
 Python 3 stdlib only.
 """
 import argparse
@@ -146,18 +147,105 @@ def parse_jscpd(text):
     return out
 
 
-_VULTURE = re.compile(r"^(?P<path>.+?):(?P<line>\d+): (?P<msg>.+)$")
+# line is "None" for a syntax error with no line, such as a null byte on Python 3.12+
+_VULTURE = re.compile(r"^(?P<path>.+?):(?P<line>\d+|None): (?P<msg>.+)$")
+# vulture skips a file it cannot read or parse and says so on stderr (the workflow merges it in);
+# its read error text is empty, so the last " - " ends the path
+_VULTURE_SKIPPED = re.compile(r"^(?:Error: Could not read file (?P<unread>.+) - |(?P<bad>.+?): invalid source code )")
+_PY_WARNING = re.compile(r"^\w+Warning: ")
+WHOLE_FILE = sys.maxsize  # end_line of a finding that covers every line of its file
 
 
 def parse_vulture(text):
-    out = []
+    out, recognized = [], False
     for raw in text.splitlines():
         m = _VULTURE.match(raw)
-        if m:
+        if m and raw.endswith("% confidence)"):
             out.append(Finding(m.group("path"), int(m.group("line")), "vulture", m.group("msg")))
-    if text.strip() and not out:
-        raise ToolOutputError("no vulture findings could be read from non-empty output")
+            continue
+        s = _VULTURE_SKIPPED.match(raw)
+        recognized |= bool(m or s)
+        if s:
+            path = s.group("unread") or s.group("bad")
+        else:  # a syntax error; a Python warning ("SyntaxWarning: ...") has the same shape but skips nothing
+            path = m.group("path") if m and not _PY_WARNING.match(m.group("msg")) else None
+        if path:
+            out.append(Finding(path, 1, "vulture", f"file not checked, vulture could not parse it: {raw}", WHOLE_FILE))
+    if text.strip() and not (out or recognized):
+        raise ToolOutputError(f"no vulture findings in its output: {text.strip().splitlines()[0][:200]!r}")
     return out
+
+
+def parse_eslint(text):
+    return [
+        Finding(f["filePath"], m.get("line", 1), m.get("ruleId") or "eslint", m["message"], m.get("endLine", 0))
+        for f in _list(text, "eslint")
+        for m in f["messages"]
+    ]
+
+
+_MYPY = re.compile(r"^(?P<path>[^:\n]+):(?P<line>\d+)(?::\d+)?: error: (?P<msg>.*?)(?:  \[(?P<code>[\w-]+)\])?$")
+# a mypy note on its own (exit 0) is a clean run, e.g. [annotation-unchecked] in an untyped function
+_MYPY_NOTE = re.compile(r"^[^:\n]+:\d+(?::\d+)?: note: ")
+_TSC = re.compile(r"^(?P<path>.+?)\((?P<line>\d+),\d+\): error (?P<code>TS\d+): (?P<msg>.*)$")
+
+
+def _parse_lines(text, pattern, name):
+    """mypy and tsc print one finding per line; output with no finding and a line that is not a note is an error."""
+    out, unread = [], False
+    for raw in text.splitlines():
+        m = pattern.match(raw)
+        if m:
+            out.append(Finding(m["path"], int(m["line"]), m["code"] or name, m["msg"]))
+        elif raw.strip() and not _MYPY_NOTE.match(raw):
+            unread = True
+    if unread and not out:
+        raise ToolOutputError(f"no {name} findings could be read from non-empty output")
+    return out
+
+
+def parse_mypy(text):
+    return _parse_lines(text, _MYPY, "mypy")
+
+
+def parse_tsc(text):
+    return _parse_lines(text, _TSC, "tsc")
+
+
+def parse_knip(text):
+    """knip --reporter json: {"files": [path], "issues": [{"file": path, "<kind>": [{"name", "line"}]}]}."""
+    data = _json(text)
+    if not isinstance(data, dict):
+        raise ToolOutputError("knip output must be a JSON object")
+    out = [Finding(p, 1, "knip:files", "unused file") for p in data.get("files", [])]
+    for issue in data.get("issues", []):
+        for kind, items in issue.items():
+            if kind == "file" or not isinstance(items, list):
+                continue
+            for it in items:
+                group = it if isinstance(it, list) else [it]  # duplicates: one group of names per export
+                names = ", ".join(d["name"] for d in group)
+                msg = f"duplicate export: {names}" if isinstance(it, list) else f"unused {kind}: {names}"
+                out.extend(Finding(issue["file"], d.get("line") or 1, f"knip:{kind}", msg) for d in group)
+    return out
+
+
+def coverage_section(text, label, suite, floor_files=8):
+    """Report-only coverage summary from a `coverage json` / pytest-cov report."""
+    data = _json(text)
+    total = data["totals"]
+    lines = [
+        f"### coverage: {total['percent_covered']:.1f}% of {_clean(label)} lines (report only)",
+        f"{total['covered_lines']} of {total['num_statements']} statements run by the {_clean(suite)}.",
+    ]
+    worst = sorted(
+        (f for f in data["files"].items() if f[1]["summary"]["num_statements"] >= 50),
+        key=lambda f: f[1]["summary"]["percent_covered"],
+    )[:floor_files]
+    if worst:
+        lines += ["", "Least covered files (50+ statements):"]
+        lines += [f"- `{_clean(p)}` {s['summary']['percent_covered']:.0f}%" for p, s in worst]
+    return "\n".join(lines)
 
 
 PARSERS = {
@@ -168,9 +256,14 @@ PARSERS = {
     "actionlint": parse_actionlint,
     "jscpd": parse_jscpd,
     "vulture": parse_vulture,
+    "eslint": parse_eslint,
+    "knip": parse_knip,
+    "mypy": parse_mypy,
+    "tsc": parse_tsc,
 }
-# Vulture prints nothing on a clean run; the workflow checks its exit code so a crash is not a pass.
-EMPTY_OK = {"vulture"}
+# These print nothing on a clean run; the workflow checks their exit codes so a crash is not a pass.
+EMPTY_OK = {"vulture", "mypy", "tsc"}
+COVERAGE = "coverage"  # not a finding parser: a report-only section, never judged
 
 
 # ---- filtering ------------------------------------------------------------------
@@ -192,8 +285,8 @@ def on_changed_lines(findings, added):
     """Keep findings whose line range touches a line the PR added or edited."""
     kept = set()
     for f in findings:
-        lines = added.get(f.path)
-        if lines and any(n in lines for n in range(f.line, max(f.line, f.end_line) + 1)):
+        lines, hi = added.get(f.path, ()), max(f.line, f.end_line)
+        if any(f.line <= n <= hi for n in lines):
             kept.add(f)
     return sorted(kept, key=lambda f: (f.path, f.line, f.end_line, f.rule, f.message))
 
@@ -271,7 +364,8 @@ def post_comment(repo, pr, tool, section, gh=run_gh):
 # ---- cli ------------------------------------------------------------------------
 def _args(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--tool", required=True, choices=sorted(PARSERS), help="tool name; also the output format")
+    ap.add_argument("--tool", required=True, choices=sorted([*PARSERS, COVERAGE]),
+                    help="tool name; also the output format")
     ap.add_argument("--input", required=True, help="file holding the tool output")
     ap.add_argument("--mode", choices=("report", "enforce"), default=os.environ.get("QUALITY_MODE", "report"))
     ap.add_argument("--base", default="origin/main")
@@ -279,6 +373,8 @@ def _args(argv):
     ap.add_argument("--strip-prefix", action="append", default=[], help="path prefix to drop (e.g. /repo/)")
     ap.add_argument("--repo", help="owner/name; with --pr, post the sticky comment")
     ap.add_argument("--pr", type=int)
+    ap.add_argument("--coverage-label", default="backend", help="coverage: what the lines are, e.g. backend")
+    ap.add_argument("--coverage-suite", default="backend unit tests", help="coverage: the suite that ran them")
     a = ap.parse_args(argv)
     if a.mode not in ("report", "enforce"):  # argparse does not check a default (QUALITY_MODE) against choices
         ap.error(f"invalid mode {a.mode!r}: use report or enforce")
@@ -295,18 +391,22 @@ def main(argv=None):
             raise ToolOutputError(f"cannot read {a.input}: {exc}") from exc
         if not text.strip() and a.tool not in EMPTY_OK:
             raise ToolOutputError(f"{a.input} is empty: the tool produced no output")
-        every = normalize(PARSERS[a.tool](text), a.strip_prefix)
-        if a.diff_file:
-            with open(a.diff_file, encoding="utf-8", errors="replace") as fh:
-                added = parse_diff(fh.read())
+        if a.tool == COVERAGE:
+            section, rc = coverage_section(text, a.coverage_label, a.coverage_suite), 0
         else:
-            added = git_added_lines(a.base)
+            every = normalize(PARSERS[a.tool](text), a.strip_prefix)
+            if a.diff_file:
+                with open(a.diff_file, encoding="utf-8", errors="replace") as fh:
+                    added = parse_diff(fh.read())
+            else:
+                added = git_added_lines(a.base)
+            kept = on_changed_lines(every, added)
+            section = render_section(a.tool, kept, len(every), a.mode)
+            rc = 1 if (a.mode == "enforce" and kept) else 0
     except (ToolOutputError, KeyError, TypeError, AttributeError, ValueError, OSError) as exc:
         print(f"ratchet: {a.tool}: cannot evaluate: {exc!r}", file=sys.stderr)
-        return 2
-
-    kept = on_changed_lines(every, added)
-    section = render_section(a.tool, kept, len(every), a.mode)
+        # replace this tool's section too, so the comment never keeps an older run's "ok"
+        section, rc = f"### {_clean(a.tool)}: could not evaluate (FAIL)\n{_clean(repr(exc))[:MAX_LINE]}", 2
     print(section)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
@@ -316,7 +416,7 @@ def main(argv=None):
             post_comment(a.repo, a.pr, a.tool, section, run_gh)
         except (GhError, ValueError, OSError) as exc:
             print(f"ratchet: warning: could not post the PR comment: {exc}", file=sys.stderr)
-    return 1 if (a.mode == "enforce" and kept) else 0
+    return rc
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+[
+ {"cell":null,"code":"E501","end_location":{"column":130,"row":11},"filename":"/repo/app/old.py","fix":null,"location":{"column":121,"row":11},"message":"Line too long (130 > 120)","noqa_row":11,"url":"https://docs.astral.sh/ruff/rules/line-too-long"},
+ {"cell":null,"code":"F401","end_location":{"column":10,"row":5},"filename":"/repo/app/old.py","fix":null,"location":{"column":8,"row":5},"message":"`os` imported but unused","noqa_row":5,"url":null},
+ {"cell":null,"code":"F401","end_location":{"column":10,"row":1},"filename":"/repo/app/new.py","fix":null,"location":{"column":8,"row":1},"message":"`os` imported but unused","noqa_row":1,"url":null},
+ {"cell":null,"code":"S608","end_location":{"column":9,"row":32},"filename":"/repo/app/old.py","fix":null,"location":{"column":1,"row":32},"message":"Possible SQL injection","noqa_row":32,"url":null}
+]
