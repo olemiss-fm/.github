@@ -67,8 +67,8 @@ jobs:
         run: |
           set -uo pipefail
           out="$RUNNER_TEMP/quality/actionlint.json"
+          # no file args: actionlint finds every .github/workflows/*.yml and *.yaml itself
           # shellcheck disable=SC2086
-          docker run $DR "$ACTIONLINT_IMAGE" -format '{{json .}}' \
-            .github/workflows/*.yml > "$out" || true
+          docker run $DR "$ACTIONLINT_IMAGE" -format '{{json .}}' > "$out" || true
           # shellcheck disable=SC2086
           $RATCHET --tool actionlint --input "$out"
