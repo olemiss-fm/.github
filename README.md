@@ -1,6 +1,6 @@
 # .github
 
-[![Quality gates](https://github.com/olemiss-fm/.github/actions/workflows/gates.yml/badge.svg?branch=main)](https://github.com/olemiss-fm/.github/actions/workflows/gates.yml)
+[![Quality gates](https://github.com/olemiss-fm/.github/actions/workflows/gates.yml/badge.svg?event=pull_request)](https://github.com/olemiss-fm/.github/actions/workflows/gates.yml)
 
 **The olemiss-fm organization profile and shared GitHub configuration, for everyone who works in
 the org's repositories.**
