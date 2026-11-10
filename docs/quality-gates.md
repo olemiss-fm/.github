@@ -3,6 +3,10 @@
 Goal: agent-written code gets what a senior engineer's review would give it, and the PR
 shows the proof. Tracking issues: olemiss-fm/ops#751, olemiss-fm/ops#769 (one shared workflow).
 
+A quality-gates badge in a repo's README shows its latest PR run. In `report` mode green means
+the gates ran, not that they found nothing; once the repo is in `enforce` mode it also means
+that PR's changed lines had no findings, apart from the always-report-only coverage sections.
+
 ## How the gate works
 
 Workflow: `.github/workflows/quality-gates.yml` in this repo (`on: workflow_call`). Every repo
