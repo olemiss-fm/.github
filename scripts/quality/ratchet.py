@@ -385,7 +385,7 @@ def merge_comment(existing, tool, section):
 # ---- GitHub ---------------------------------------------------------------------
 def run_gh(args, body=None):
     p = subprocess.run(  # noqa: S603  # argv list, no shell; args are gh api words and repos/... paths
-        ["gh", *args],  # noqa: S607  # gh from the runner's PATH, as every gate step runs it
+        ["gh", *args],  # noqa: S607  # gh from the runner's PATH, like every tool the gate steps run
         input=body,
         capture_output=True,
         text=True,
