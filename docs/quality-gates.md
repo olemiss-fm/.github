@@ -3,6 +3,8 @@
 Goal: agent-written code gets what a senior engineer's review would give it, and the PR
 shows the proof. Tracking issues: olemiss-fm/ops#751, olemiss-fm/ops#769 (one shared workflow).
 
+The quality-gates badge in a repo's README means the gate ran, not that it found nothing, until the enforce flip.
+
 ## How the gate works
 
 Workflow: `.github/workflows/quality-gates.yml` in this repo (`on: workflow_call`). Every repo
