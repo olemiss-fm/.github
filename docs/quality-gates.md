@@ -45,7 +45,7 @@ is worse than a red one. Vulture prints nothing when it is clean, so its step al
 exit code (0 clean, 3 dead code found, 1 a file it could not read or parse; anything else
 fails). Vulture skips a file it cannot read or parse, so the ratchet reports that file as
 "file not checked" on any line a PR changes in it.
-Each section lists at most 20 findings, each line cut at 240 characters, so the one comment
+Each section lists at most 18 findings, each line cut at 240 characters, so the one comment
 stays under GitHub's size limit.
 
 ### Fixing a finding you disagree with
@@ -124,8 +124,17 @@ under `bash --noprofile --norc -uo pipefail`, with:
 - `$PYTHON_IMAGE`, `$NODE_IMAGE`, `$QUALITY_DIR` (a scratch directory).
 
 The ratchet reads `eslint` (JSON), `knip` (JSON), `mypy` and `tsc` (text) besides the seven
-shared tools, and `--tool coverage --input <pytest-cov json> --coverage-label api
---coverage-suite "api tests"` writes a report-only coverage section.
+shared tools. Two more read a pytest-cov / `coverage json` report and are always report only,
+whatever the mode:
+
+- `--tool coverage --coverage-label api --coverage-suite "api tests"`: total coverage and the
+  least covered files;
+- `--tool uncovered --coverage-suite "api tests"`: one finding per run of lines no test ran,
+  judged on changed lines like any tool, so the section lists the lines this PR adds that no
+  test runs.
+
+A tool that ran in a subfolder reports paths relative to it; `--add-prefix web/` puts the
+folder back (after `--strip-prefix`), so the paths meet the diff.
 
 Rules for the script:
 
@@ -134,6 +143,20 @@ Rules for the script:
 - mypy and tsc print nothing when clean, so the ratchet reads empty output as a pass. Check
   their exit codes (mypy 0 or 1, tsc 0 or 2) and, on any other, write the reason into the
   output file instead, as the shared steps do; the ratchet then reports the section as FAIL.
+
+### Where each repo's own add-on goes
+
+| Repo | Add-on it kept beside the vendored ratchet | In the shared setup |
+|---|---|---|
+| FMAPI | `ratchet_ext.py`: eslint, tsc, mypy, knip, coverage | shared parsers; knip with `--add-prefix sync_ui/`, coverage as `--tool uncovered`; the commands in its `extra-gates` script |
+| fm-comp-time | `extra_gates.py`: mypy, tsc, eslint, knip, coverage | shared parsers; `--add-prefix web/` and `api/`; coverage as `--tool coverage` plus `--tool uncovered` in its separate coverage job |
+| utility_billing | `changed_lines.py`: mypy and `eslint -f unix` text, job summary only | shared `mypy` parser; eslint switches to `-f json` for the shared `eslint` parser |
+| landing_page, fm-utilities-next | `extra_tools.py`: eslint, knip, mypy, tsc, coverage | the same parsers, now in the shared ratchet |
+| fm-display-console | whole-repo eslint, stylelint, knip and tsc counts in the job summary | its own second job in the caller file, beside the `uses:` job; not a ratchet section |
+
+A caller file is an ordinary workflow: next to the `gates` job that `uses:` this workflow it may
+keep jobs of its own (counts, coverage on a heavier runner). Those jobs run the repo's own
+steps; only the `gates` job is shared.
 
 ### A separate job that needs the ratchet
 
@@ -159,9 +182,9 @@ python3 path/to/ratchet.py --tool ruff --input ruff.json --strip-prefix /repo/ -
 
 Without `--repo` and `--pr` it only prints; nothing is posted. `--diff-file` replaces the
 `git diff`. Interface: `--tool NAME --input FILE [--mode report|enforce] [--base REF]
-[--diff-file F] [--strip-prefix P] [--repo OWNER/NAME --pr N] [--coverage-label L
---coverage-suite S]`; the tool name is also the output format (`coverage` reads a pytest-cov
-JSON report). Exit 0 ok, 1 enforce failed, 2 unreadable output. `GITHUB_STEP_SUMMARY` is also
+[--diff-file F] [--strip-prefix P] [--add-prefix P] [--repo OWNER/NAME --pr N]
+[--coverage-label L] [--coverage-suite S]`; the tool name is also the output format (`coverage`
+and `uncovered` read a pytest-cov JSON report). Exit 0 ok, 1 enforce failed, 2 unreadable output. `GITHUB_STEP_SUMMARY` is also
 written when set. Tests: `scripts/quality/tests` (pytest; fixtures are real tool output),
 run on every PR here by `.github/workflows/gates.yml`.
 

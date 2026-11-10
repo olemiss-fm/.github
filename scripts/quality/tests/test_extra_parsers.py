@@ -1,4 +1,5 @@
-"""Behaviour lock for the ratchet parsers landing_page and fm-utilities-next once kept in ratchet.py."""
+"""Behaviour lock for the parsers repos once kept beside ratchet.py (landing_page, fm-utilities-next, FMAPI,
+fm-comp-time, utility_billing)."""
 import json
 import os
 import sys
@@ -131,17 +132,101 @@ def test_cli_clean_run_prints_nothing_and_passes(tmp_path, monkeypatch, tool):
     assert _run(tmp_path, monkeypatch, tool, "", "--mode", "enforce") == 0
 
 
-def test_twelve_full_sections_fit_one_comment():
-    """The shared workflow can post 7 gates plus eslint, knip, mypy, tsc and coverage in one sticky comment."""
+def test_every_tool_full_fits_one_comment():
+    """The shared workflow can post 7 gates plus eslint, knip, mypy, tsc, uncovered and coverage in one comment."""
     long_msg = "x" * 400
     body = None
     for tool in [*ratchet.PARSERS, ratchet.COVERAGE]:
         fs = [ratchet.Finding(f"a/very/long/path/to/{tool}/file_{i}.py", i, "RULE123", long_msg) for i in range(60)]
         body = ratchet.merge_comment(body, tool, ratchet.render_section(tool, fs, 10**6, "enforce"))
-    assert len(ratchet.PARSERS) + 1 == 12
+    assert len(ratchet.PARSERS) + 1 == 13
     assert len(body) < 65536
 
 
 def test_unparseable_json_keeps_the_workflows_reason():
     with pytest.raises(ToolOutputError, match="shellcheck did not run cleanly"):
         ratchet.parse_shellcheck("shellcheck did not run cleanly (exit 2)\n")
+
+
+# ---- what FMAPI ratchet_ext.py, fm-comp-time extra_gates.py and utility_billing changed_lines.py did ----
+COVERAGE_JSON = json.dumps({
+    "totals": {"percent_covered": 50.0, "covered_lines": 3, "num_statements": 6},
+    "files": {"app/x.py": {"missing_lines": [7, 3, 4, 9], "summary": {"percent_covered": 50.0, "num_statements": 6}}},
+})
+
+
+def test_uncovered_is_one_finding_per_run():
+    assert ratchet.parse_uncovered(COVERAGE_JSON, "mock suite") == [
+        Finding("app/x.py", 3, "uncovered", "2 line(s) not run by the mock suite", 4),
+        Finding("app/x.py", 7, "uncovered", "1 line(s) not run by the mock suite", 7),
+        Finding("app/x.py", 9, "uncovered", "1 line(s) not run by the mock suite", 9),
+    ]
+
+
+def test_cli_uncovered_is_report_only_and_takes_the_subfolder(tmp_path, monkeypatch, capsys):
+    """fm-comp-time runs its tests in api/, so coverage paths need api/ put back to meet the diff."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    (tmp_path / "in").write_text(COVERAGE_JSON)
+    (tmp_path / "d.diff").write_text("diff --git a/api/app/x.py b/api/app/x.py\n+++ b/api/app/x.py\n@@ -0,0 +4,1 @@\n+x\n")
+    rc = ratchet.main(["--tool", "uncovered", "--input", str(tmp_path / "in"), "--diff-file", str(tmp_path / "d.diff"),
+                       "--mode", "enforce", "--add-prefix", "api/", "--coverage-suite", "api tests"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "### uncovered: 1 finding on changed lines (report only)" in out
+    assert "`api/app/x.py:3` uncovered: 2 line(s) not run by the api tests" in out
+    assert "Mode: report." in out
+
+
+def test_uncovered_bad_report_is_an_error():
+    with pytest.raises(ToolOutputError):
+        ratchet.parse_uncovered("{}")
+
+
+def test_add_prefix_follows_strip():
+    """FMAPI runs knip inside sync_ui/, fm-comp-time runs tsc and knip inside web/."""
+    found = ratchet.normalize([Finding("/repo/./src/a.ts", 1, "r", "m")], ["/repo/"], "sync_ui/")
+    assert found == [Finding("sync_ui/src/a.ts", 1, "r", "m")]
+
+
+def test_knip_per_issue_files_do_not_crash():
+    """knip 5.6x lists an unused file under its own issue (FMAPI sync_ui fixture)."""
+    text = json.dumps({"issues": [
+        {"file": "src/jobHistory.ts", "exports": [{"name": "strip", "line": 23}], "types": [{"name": "Freq", "line": 12}],
+         "files": []},
+        {"file": "src/orphan.ts", "files": [{"name": "src/orphan.ts"}]},
+    ]})
+    assert [(f.path, f.line, f.rule) for f in ratchet.parse_knip(text)] == [
+        ("src/jobHistory.ts", 23, "knip:exports"),
+        ("src/jobHistory.ts", 12, "knip:types"),
+        ("src/orphan.ts", 1, "knip:files"),
+    ]
+
+
+def test_mypy_reads_warnings_and_no_column():
+    text = "fm_api/crud.py:42: error: Bad return  [return-value]\nfm_api/crud.py:50: warning: Unused section\n"
+    assert ratchet.parse_mypy(text) == [
+        Finding("fm_api/crud.py", 42, "return-value", "Bad return"),
+        Finding("fm_api/crud.py", 50, "mypy", "Unused section"),
+    ]
+
+
+def test_tsc_skips_continuation_lines():
+    text = (
+        "sync_ui/src/A.tsx(769,24): error TS2375: Type is not assignable to type 'X'.\n"
+        "  Types of property 'title' are incompatible.\n"
+        "sync_ui/src/App.tsx(12,7): error TS6133: 'envLabel' is declared but its value is never read.\n"
+    )
+    assert [(f.path, f.line) for f in ratchet.parse_tsc(text)] == [("sync_ui/src/A.tsx", 769), ("sync_ui/src/App.tsx", 12)]
+
+
+def test_tsc_global_error_is_not_a_pass():
+    """A broken tsconfig checks nothing, even when another line looks like a finding."""
+    text = "error TS5058: The specified path does not exist: 'x.json'.\nweb/a.ts(1,1): error TS2304: Cannot find name 'y'.\n"
+    with pytest.raises(ToolOutputError, match="TS5058"):
+        ratchet.parse_tsc(text)
+
+
+def test_eslint_fatal_message_with_null_line():
+    text = json.dumps([{"filePath": "/repo/a.js", "messages": [{"ruleId": None, "fatal": True, "message": "Parsing error",
+                                                                "line": None, "endLine": None}]}])
+    assert ratchet.parse_eslint(text) == [Finding("/repo/a.js", 1, "eslint", "Parsing error", 0)]

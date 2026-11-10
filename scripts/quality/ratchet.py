@@ -5,7 +5,8 @@
 Reads the output of one lint/analysis tool (JSON, or the text vulture, mypy and tsc print),
 keeps only the findings that sit on lines this PR adds or edits (`git diff -U0 <base>...HEAD`),
 and reports them in one sticky PR comment with a section per tool. `--tool coverage` reads a
-pytest-cov JSON report and adds a report-only coverage section instead.
+pytest-cov JSON report and adds a report-only coverage section instead; `--tool uncovered` reads
+the same report and lists the changed lines no test ran, also report only.
 
   report   always exits 0 (a broken tool run still exits 2, and says so in the comment)
   enforce  exits 1 when any finding is on a changed line
@@ -25,7 +26,7 @@ import sys
 from dataclasses import dataclass
 
 STICKY = "<!-- ratchet-sticky -->"
-DEFAULT_LIMIT = 20  # 12 sections x 20 lines x 240 chars, plus headers, stays under the 65536 char comment limit
+DEFAULT_LIMIT = 18  # 13 sections x 18 lines x 240 chars, plus headers, stays under the 65536 char comment limit
 MAX_LINE = 240
 
 
@@ -179,16 +180,20 @@ def parse_vulture(text):
 
 def parse_eslint(text):
     return [
-        Finding(f["filePath"], m.get("line", 1), m.get("ruleId") or "eslint", m["message"], m.get("endLine", 0))
+        # a fatal message (a file eslint could not parse) may carry a null line
+        Finding(f["filePath"], m.get("line") or 1, m.get("ruleId") or "eslint", m["message"], m.get("endLine") or 0)
         for f in _list(text, "eslint")
         for m in f["messages"]
     ]
 
 
-_MYPY = re.compile(r"^(?P<path>[^:\n]+):(?P<line>\d+)(?::\d+)?: error: (?P<msg>.*?)(?:  \[(?P<code>[\w-]+)\])?$")
+_MYPY = re.compile(
+    r"^(?P<path>[^:\n]+):(?P<line>\d+)(?::\d+)?: (?:error|warning): (?P<msg>.*?)(?:  \[(?P<code>[\w-]+)\])?$"
+)
 # a mypy note on its own (exit 0) is a clean run, e.g. [annotation-unchecked] in an untyped function
 _MYPY_NOTE = re.compile(r"^[^:\n]+:\d+(?::\d+)?: note: ")
 _TSC = re.compile(r"^(?P<path>.+?)\((?P<line>\d+),\d+\): error (?P<code>TS\d+): (?P<msg>.*)$")
+_TSC_GLOBAL = re.compile(r"^error TS\d+.*$", re.M)  # a config or global error: tsc checked nothing
 
 
 def _parse_lines(text, pattern, name):
@@ -210,6 +215,9 @@ def parse_mypy(text):
 
 
 def parse_tsc(text):
+    glob = _TSC_GLOBAL.search(text)
+    if glob:
+        raise ToolOutputError(f"tsc reported a global error: {glob[0][:200]}")
     return _parse_lines(text, _TSC, "tsc")
 
 
@@ -249,6 +257,23 @@ def coverage_section(text, label, suite, floor_files=8):
     return "\n".join(lines)
 
 
+def parse_uncovered(text, suite="tests"):
+    """`coverage json` / pytest-cov report: one finding per run of lines no test ran."""
+    data = _json(text)
+    if not isinstance(data, dict) or "files" not in data:
+        raise ToolOutputError("coverage report needs a 'files' key")
+    out = []
+    for path, info in data["files"].items():
+        run = []
+        for n in [*sorted(info["missing_lines"]), None]:
+            if run and n != run[-1] + 1:
+                out.append(Finding(path, run[0], "uncovered", f"{len(run)} line(s) not run by the {suite}", run[-1]))
+                run = []
+            if n is not None:
+                run.append(n)
+    return out
+
+
 PARSERS = {
     "ruff": parse_ruff,
     "shellcheck": parse_shellcheck,
@@ -261,25 +286,28 @@ PARSERS = {
     "knip": parse_knip,
     "mypy": parse_mypy,
     "tsc": parse_tsc,
+    "uncovered": parse_uncovered,
 }
 # These print nothing on a clean run; the workflow checks their exit codes so a crash is not a pass.
 EMPTY_OK = {"vulture", "mypy", "tsc"}
 COVERAGE = "coverage"  # not a finding parser: a report-only section, never judged
+UNCOVERED = "uncovered"  # judged on changed lines like any tool, but always report only
 
 
 # ---- filtering ------------------------------------------------------------------
-def normalize_path(p, prefixes=()):
+def normalize_path(p, prefixes=(), add=""):
+    """Drop the first matching prefix and any "./", then prepend `add` (the folder a tool ran in)."""
     for pre in prefixes:
         if p.startswith(pre):
             p = p[len(pre):]
             break
     while p.startswith("./"):
         p = p[2:]
-    return p
+    return add + p
 
 
-def normalize(findings, prefixes=()):
-    return [Finding(normalize_path(f.path, prefixes), f.line, f.rule, f.message, f.end_line) for f in findings]
+def normalize(findings, prefixes=(), add=""):
+    return [Finding(normalize_path(f.path, prefixes, add), f.line, f.rule, f.message, f.end_line) for f in findings]
 
 
 def on_changed_lines(findings, added):
@@ -372,10 +400,12 @@ def _args(argv):
     ap.add_argument("--base", default="origin/main")
     ap.add_argument("--diff-file", help="use this unified-0 diff instead of running git diff")
     ap.add_argument("--strip-prefix", action="append", default=[], help="path prefix to drop (e.g. /repo/)")
+    ap.add_argument("--add-prefix", default="", help="path prefix to add after stripping, when the tool ran in a subfolder")
     ap.add_argument("--repo", help="owner/name; with --pr, post the sticky comment")
     ap.add_argument("--pr", type=int)
     ap.add_argument("--coverage-label", default="backend", help="coverage: what the lines are, e.g. backend")
-    ap.add_argument("--coverage-suite", default="backend unit tests", help="coverage: the suite that ran them")
+    ap.add_argument("--coverage-suite", default="backend unit tests",
+                    help="coverage and uncovered: the suite that ran them")
     a = ap.parse_args(argv)
     if a.mode not in ("report", "enforce"):  # argparse does not check a default (QUALITY_MODE) against choices
         ap.error(f"invalid mode {a.mode!r}: use report or enforce")
@@ -395,15 +425,19 @@ def main(argv=None):
         if a.tool == COVERAGE:
             section, rc = coverage_section(text, a.coverage_label, a.coverage_suite), 0
         else:
-            every = normalize(PARSERS[a.tool](text), a.strip_prefix)
+            if a.tool == UNCOVERED:
+                found, mode = parse_uncovered(text, a.coverage_suite), "report"
+            else:
+                found, mode = PARSERS[a.tool](text), a.mode
+            every = normalize(found, a.strip_prefix, a.add_prefix)
             if a.diff_file:
                 with open(a.diff_file, encoding="utf-8", errors="replace") as fh:
                     added = parse_diff(fh.read())
             else:
                 added = git_added_lines(a.base)
             kept = on_changed_lines(every, added)
-            section = render_section(a.tool, kept, len(every), a.mode)
-            rc = 1 if (a.mode == "enforce" and kept) else 0
+            section = render_section(a.tool, kept, len(every), mode)
+            rc = 1 if (mode == "enforce" and kept) else 0
     except (ToolOutputError, KeyError, TypeError, AttributeError, ValueError, OSError) as exc:
         print(f"ratchet: {a.tool}: cannot evaluate: {exc!r}", file=sys.stderr)
         # replace this tool's section too, so the comment never keeps an older run's "ok"
