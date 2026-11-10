@@ -1,0 +1,2 @@
+[{"file":"with space/f.sh","line":1,"endLine":1,"column":6,"endColumn":8,"level":"info","code":2086,"message":"Double quote to prevent globbing and word splitting.","fix":null},
+ {"file":"with space/f.sh","line":9,"endLine":9,"column":1,"endColumn":2,"level":"warning","code":2034,"message":"unused","fix":null}]

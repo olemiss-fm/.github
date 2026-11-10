@@ -1,0 +1,6 @@
+# actionlint 1.7.7 predates the job.workflow_repository and job.workflow_sha contexts that a
+# reusable workflow reads to find its own commit (GitHub sets both; seen in a probe run, ops#769).
+paths:
+  .github/workflows/quality-gates.yml:
+    ignore:
+      - 'property "workflow_(repository|sha)" is not defined in object type'

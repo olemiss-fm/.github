@@ -1,0 +1,41 @@
+name: Quality gates (this repo)
+
+# This repo's own caller of the shared quality-gates.yml, plus the ratchet's tests. A PR here runs
+# the workflow and ratchet it carries, so a change is tested before any repo pins it. GitHub-hosted:
+# this repo is public (free minutes) and the fm-ci runner group serves private repos only.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gates:
+    uses: ./.github/workflows/quality-gates.yml
+    with:
+      tools: shellcheck actionlint
+      mode: report
+      runs-on: '["ubuntu-latest"]'
+
+  ratchet-tests:
+    name: ratchet self-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: pytest
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" --tmpfs /tmp:exec,mode=1777 \
+            -e HOME=/tmp -e PYTHONDONTWRITEBYTECODE=1 -v "$PWD:/repo:ro" -w /repo \
+            python@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 sh -c '
+            set -e
+            pip install -q --user --no-warn-script-location pytest==9.1.1
+            python -m pytest scripts/quality/tests -q -p no:cacheprovider
+          '

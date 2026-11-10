@@ -1,0 +1,2 @@
+[{"message":"property \"foo\" is not defined","filepath":"app/new.py","line":2,"column":5,"kind":"expression","snippet":"x","end_column":8},
+ {"message":"other","filepath":"app/old.py","line":99,"column":1,"kind":"syntax-check","snippet":"y","end_column":2}]
