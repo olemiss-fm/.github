@@ -336,11 +336,11 @@ def _plural(n):
     return f"{n} finding" + ("" if n == 1 else "s")
 
 
-def render_section(tool, kept, total, mode, limit=DEFAULT_LIMIT):
+def render_section(tool, kept, total, mode, limit=DEFAULT_LIMIT, scope="Whole repo"):
     status = "ok" if not kept else ("FAIL" if mode == "enforce" else "report only")
     lines = [
         f"### {_clean(tool)}: {_plural(len(kept))} on changed lines ({status})",
-        f"Whole repo: {total} existing. Only lines this PR adds or edits are judged. Mode: {mode}.",
+        f"{_clean(scope)}: {total} existing. Only lines this PR adds or edits are judged. Mode: {mode}.",
     ]
     if kept:
         lines.append("")
@@ -408,6 +408,8 @@ def _args(argv):
     ap.add_argument("--add-prefix", default="", help="path prefix to add after stripping (the tool ran in a subfolder)")
     ap.add_argument("--repo", help="owner/name; with --pr, post the sticky comment")
     ap.add_argument("--pr", type=int)
+    ap.add_argument("--scope-label", default="Whole repo",
+                    help="what the existing count covers, when the tool did not read the whole repo")
     ap.add_argument("--coverage-label", default="backend", help="coverage: what the lines are, e.g. backend")
     ap.add_argument("--coverage-suite", default="backend unit tests",
                     help="coverage and uncovered: the suite that ran them")
@@ -441,7 +443,7 @@ def main(argv=None):
             else:
                 added = git_added_lines(a.base)
             kept = on_changed_lines(every, added)
-            section = render_section(a.tool, kept, len(every), mode)
+            section = render_section(a.tool, kept, len(every), mode, scope=a.scope_label)
             rc = 1 if (mode == "enforce" and kept) else 0
     except (ToolOutputError, KeyError, TypeError, AttributeError, ValueError, OSError) as exc:
         print(f"ratchet: {a.tool}: cannot evaluate: {exc!r}", file=sys.stderr)

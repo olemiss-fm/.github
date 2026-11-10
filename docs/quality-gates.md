@@ -26,6 +26,8 @@ Whole repo: 6197 existing. Only lines this PR adds or edits are judged. Mode: re
 
 - `3 findings on changed lines`: these are yours. Fix each one in the PR.
 - `Whole repo: N existing`: the backlog. Not your concern, shown only so the trend is visible.
+  A repo that lints only the PR's SQL files (`sqlfluff-changed-only`) sees
+  `In the SQL files this PR changes: N existing` instead.
 - Status `ok`, `report only` or `FAIL`. `FAIL` appears only in `enforce` mode.
 - The lines under the heading are `file:line RULE: message`. Open the file at that line.
 
@@ -64,7 +66,7 @@ stays under GitHub's size limit.
 | shellcheck | Shell bugs: unquoted variables, bad tests, unused variables (`*.sh`). | Quote it; follow https://www.shellcheck.net/wiki/SCxxxx |
 | hadolint | Dockerfile practice: unpinned base image or packages, missing cleanup. | Pin the version; https://github.com/hadolint/hadolint#rules |
 | actionlint | GitHub Actions workflow errors: bad expressions, unknown inputs, script injection, shell issues in `run:`. Self-hosted labels are declared in `.github/actionlint.yaml`. | Follow the message. |
-| sqlfluff | SQL style in `*/migrations/*.sql` (Postgres dialect). | Reformat as the message says. |
+| sqlfluff | SQL style in `migrations/*.sql` and `*/migrations/*.sql` (Postgres dialect). | Reformat as the message says. |
 
 Containers (all pinned by digest in the workflow `env:`): ruff 0.14.3, python 3.13-slim with
 vulture 2.14 (a caller may pass another `python-image`), node 22-slim with jscpd 4.0.5,
@@ -106,8 +108,8 @@ would deadlock).
 | `jscpd-paths` | `.` | space-separated paths jscpd scans |
 | `jscpd-formats` | `python,bash,yaml,sql` | jscpd `--format` |
 | `jscpd-ignore` | `**/node_modules/**,**/secrets/**,**/.git/**` | jscpd `--ignore`; empty passes none |
-| `sqlfluff-paths` | `*/migrations/*.sql` | git pathspecs sqlfluff lints |
-| `sqlfluff-changed-only` | `false` | `true` lints only the files in `sqlfluff-paths` the PR adds or changes (a repo with hundreds of migrations); only the "Whole repo" count differs |
+| `sqlfluff-paths` | `migrations/*.sql */migrations/*.sql` | git pathspecs sqlfluff lints (a git `*` also matches `/`, so these reach nested folders) |
+| `sqlfluff-changed-only` | `false` | `true` lints only the files in `sqlfluff-paths` the PR adds or changes (a repo with hundreds of migrations); the count line then says so |
 | `vulture-exclude` | `secrets/*,*/secrets/*` | vulture `--exclude` globs, comma-separated; empty passes none |
 | `timeout-minutes` | `25` | job timeout |
 | `extra-gates` | none | a bash script in the repo for its own gates, see below |
@@ -153,9 +155,9 @@ Rules for the script:
 
 | Repo | Add-on it kept beside the vendored ratchet | In the shared setup |
 |---|---|---|
-| FMAPI | `ratchet_ext.py`: eslint, tsc, mypy, knip, coverage | shared parsers; mypy, eslint, tsc and knip (`--add-prefix sync_ui/`) in its `extra-gates` script; the mock-suite coverage as `--tool uncovered` in its own job, which fetches the ratchet; `sqlfluff-changed-only: true`, its own `vulture-exclude` and a longer `timeout-minutes` |
-| fm-comp-time | `extra_gates.py`: mypy, tsc, eslint, knip, coverage | shared parsers; `--add-prefix web/` and `api/`; coverage as `--tool coverage` plus `--tool uncovered` in its separate coverage job |
-| utility_billing | `changed_lines.py`: mypy and `eslint -f unix` text, job summary only | shared `mypy` parser; eslint switches to `-f json` for the shared `eslint` parser |
+| FMAPI | `ratchet_ext.py`: eslint, tsc, mypy, knip, coverage | shared parsers; mypy, eslint, tsc and knip (`--add-prefix sync_ui/`) in its `extra-gates` script; the mock-suite coverage as `--tool uncovered` in its own job, which fetches the ratchet; `sqlfluff-changed-only: true`, `vulture-exclude: '*/secrets/*,*/archive/*,*/.claude/*,*/node_modules/*'`, `timeout-minutes: 60` |
+| fm-comp-time | `extra_gates.py`: mypy, tsc, eslint, knip, coverage | shared parsers; `--add-prefix web/` and `api/`; coverage as `--tool coverage` plus `--tool uncovered` in its separate coverage job; `vulture-exclude: 'secrets/*,*/secrets/*,web/*'` |
+| utility_billing | `changed_lines.py`: mypy and `eslint -f unix` text, job summary only | shared `mypy` parser; eslint switches to `-f json` for the shared `eslint` parser; `vulture-exclude: 'secrets/*,*/secrets/*,*/staticfiles/*,*/static/pdfjs/*'` |
 | landing_page, fm-utilities-next | `extra_tools.py`: eslint, knip, mypy, tsc, coverage | the same parsers, now in the shared ratchet |
 | fm-display-console | whole-repo eslint, stylelint, knip and tsc counts in the job summary | its own second job in the caller file, beside the `uses:` job; not a ratchet section |
 

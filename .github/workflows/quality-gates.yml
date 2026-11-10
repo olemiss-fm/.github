@@ -54,7 +54,7 @@ on:
       sqlfluff-paths:
         description: Whitespace-separated git pathspecs of the SQL files sqlfluff lints.
         type: string
-        default: '*/migrations/*.sql'
+        default: 'migrations/*.sql */migrations/*.sql'
       sqlfluff-changed-only:
         description: Lint only the files in sqlfluff-paths that the PR adds or changes (for a repo with hundreds of migrations).
         type: boolean
@@ -288,7 +288,9 @@ jobs:
           else
             echo '[]' > "$out"
           fi
-          "$RATCHET" --tool sqlfluff --input "$out"
+          scope=()
+          [ "$CHANGED_ONLY" = true ] && scope=(--scope-label "In the SQL files this PR changes")
+          "$RATCHET" --tool sqlfluff --input "$out" "${scope[@]}"
 
       - name: extra gates (${{ inputs.extra-gates }})
         if: ${{ !cancelled() && steps.prepare.outputs.tools != '' && inputs.extra-gates != '' }}

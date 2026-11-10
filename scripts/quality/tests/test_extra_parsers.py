@@ -267,3 +267,12 @@ def test_knip5_owners_and_member_dicts():
         "classMembers": {},
     }]})
     assert ratchet.parse_knip(text) == [Finding("src/a.ts", 3, "knip:enumMembers", "unused enumMembers: Blue")]
+
+
+def test_scope_label_names_what_the_count_covers(tmp_path, monkeypatch, capsys):
+    """sqlfluff-changed-only lints only the PR's files, so the count must not say "Whole repo"."""
+    rc = _run(tmp_path, monkeypatch, "sqlfluff", "[]", "--scope-label", "In the SQL files this PR changes")
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "In the SQL files this PR changes: 0 existing." in out
+    assert "Whole repo" not in out
