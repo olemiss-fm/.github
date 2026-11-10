@@ -9,7 +9,7 @@ has no Python, TypeScript, CSS, SQL or Dockerfiles, so only two gates apply:
 | Gate | Checks | Scope |
 |---|---|---|
 | shellcheck | Shell bugs: unquoted variables, bad tests | `*.sh` |
-| actionlint | Workflow errors, script injection | `.github/workflows/*.yml` |
+| actionlint | Workflow errors, script injection | `.github/workflows/*.yml`, `*.yaml` |
 
 Workflow: `.github/workflows/quality-gates.yml`. It runs on a GitHub-hosted runner, not
 `fm-ci`: this repo is public (free minutes) and the org runner group does not serve public
