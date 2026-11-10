@@ -384,13 +384,13 @@ def merge_comment(existing, tool, section):
 
 # ---- GitHub ---------------------------------------------------------------------
 def run_gh(args, body=None):
-    p = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        ["gh", *args],
+    p = subprocess.run(  # noqa: S603  # argv list, no shell; args are gh api words and repos/... paths
+        ["gh", *args],  # noqa: S607  # gh from the runner's PATH, as every gate step runs it
         input=body,
         capture_output=True,
         text=True,
         encoding="utf-8",
-        errors="replace",  # noqa: S607
+        errors="replace",
         check=False,
     )
     if p.returncode != 0:
