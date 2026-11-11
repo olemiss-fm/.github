@@ -1,6 +1,5 @@
 # .github
 
-
 **The olemiss-fm organization profile and shared GitHub configuration, for everyone who works in
 the org's repositories.**
 

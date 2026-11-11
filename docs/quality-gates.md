@@ -3,9 +3,10 @@
 Goal: agent-written code gets what a senior engineer's review would give it, and the PR
 shows the proof. Tracking issues: olemiss-fm/ops#751, olemiss-fm/ops#769 (one shared workflow).
 
-A quality-gates badge in a repo's README shows its latest PR run. In `report` mode green means
-the gates ran, not that they found nothing; once the repo is in `enforce` mode it also means
-that PR's changed lines had no findings, apart from the always-report-only coverage sections.
+There is no quality-gates README badge: the gate runs on pull requests only (it needs the PR number
+and base branch), so a badge could only show whichever PR ran last, not main. The result is on each PR.
+In `report` mode a green check means the gates ran, not that they found nothing; in `enforce` mode it
+also means the PR's changed lines had no findings, apart from the always-report-only coverage sections.
 
 ## How the gate works
 
@@ -42,7 +43,7 @@ error (exit 2).
 
 | Mode | Findings on changed lines | Check result |
 |---|---|---|
-| `report` (now) | comment | green |
+| `report` (default) | comment | green |
 | `enforce` | comment | red |
 
 Flip a repo to `enforce` with a one-line PR to its caller after the report-only week. If a tool
