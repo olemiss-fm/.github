@@ -16,7 +16,7 @@ jobs:
     uses: ./.github/workflows/quality-gates.yml
     with:
       tools: shellcheck actionlint
-      mode: report
+      mode: enforce
       runs-on: '["ubuntu-latest"]'
 
   ratchet-tests:
