@@ -138,7 +138,9 @@ jobs:
           EOF
           chmod +x "$q/ratchet" || exit 2
           # flags every tool container shares: read-only repo at /repo, run as the runner user
-          dr="--rm --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
+          # the label lets the always() step below remove a container a cancelled or timed-out job
+          # left running (--rm only fires when the process ends; two npm installs ran 7 days, ops#815)
+          dr="--rm --label fm.quality-gates=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$GITHUB_JOB --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
           {
             echo "QUALITY_DIR=$q"
             echo "RATCHET=$q/ratchet"
@@ -289,3 +291,9 @@ jobs:
           # the worst of the script's own exit code and every $RATCHET call it made
           worst=$( { echo "$rc"; cat "$QUALITY_DIR/rc" 2>/dev/null; } | sort -n | tail -1)
           exit "$worst"
+
+      - name: remove tool containers left by a cancelled or timed-out step
+        if: always()
+        run: |
+          docker ps -aq --filter "label=fm.quality-gates=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$GITHUB_JOB" |
+            xargs -r docker rm -f
