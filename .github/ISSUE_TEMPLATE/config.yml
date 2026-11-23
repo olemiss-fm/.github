@@ -1,0 +1,3 @@
+# Blank issues stay allowed (bots and quick notes), but an issue reaches a worker only when it
+# has the four sections of work-item.md and the `ready` label (ops#875, Definition of Ready).
+blank_issues_enabled: true

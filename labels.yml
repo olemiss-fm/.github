@@ -81,3 +81,18 @@
 - name: "preview"
   color: "0e8a16"
   description: "Build this pull request as a QA preview on fm-devdock (read by qa-preview.yml)."
+
+# --- Definition of Ready and the review backlog (ops#875) ----------------------
+#     An issue reaches a worker only with `ready`; an issue the manager or the
+#     deterministic check (ops infrastructure/agent-vm/bin/issue-ready) finds
+#     short of the template gets `needs-refinement`. A review finding deferred
+#     out of a PR is filed as a `tech-debt` issue.
+- name: "ready"
+  color: "0e8a16"
+  description: "Definition of Ready met: goal, testable acceptance criteria, out of scope, verification."
+- name: "needs-refinement"
+  color: "fbca04"
+  description: "Not ready to build: a section or a testable acceptance criterion is missing."
+- name: "tech-debt"
+  color: "c5def5"
+  description: "A review finding deferred out of a PR: real, not a blocker, worth its own issue."
