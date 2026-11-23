@@ -90,6 +90,8 @@ jobs:
         shell: bash --noprofile --norc -uo pipefail {0}
     env:
       GH_TOKEN: ${{ github.token }}
+      # every tool container carries it, so the last step can remove what a cancel left (ops#815)
+      QG_LABEL: fm.quality-gates=${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -138,9 +140,7 @@ jobs:
           EOF
           chmod +x "$q/ratchet" || exit 2
           # flags every tool container shares: read-only repo at /repo, run as the runner user
-          # the label lets the always() step below remove a container a cancelled or timed-out job
-          # left running (--rm only fires when the process ends; two npm installs ran 7 days, ops#815)
-          dr="--rm --label fm.quality-gates=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$GITHUB_JOB --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
+          dr="--rm --label $QG_LABEL --user $(id -u):$(id -g) -v $PWD:/repo:ro -w /repo"
           {
             echo "QUALITY_DIR=$q"
             echo "RATCHET=$q/ratchet"
@@ -293,7 +293,8 @@ jobs:
           exit "$worst"
 
       - name: remove tool containers left by a cancelled or timed-out step
+        # --rm only fires when the process exits; a killed docker client leaves the container running
         if: always()
-        run: |
-          docker ps -aq --filter "label=fm.quality-gates=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$GITHUB_JOB" |
-            xargs -r docker rm -f
+        continue-on-error: true
+        timeout-minutes: 2
+        run: docker ps -aq --filter "label=$QG_LABEL" | xargs -r docker rm -f
